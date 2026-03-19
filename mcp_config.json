@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mcpscout": {
+      "command": "python",
+      "args": ["-m", "mcpspider", "server"],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+      }
+    }
+  }
+}

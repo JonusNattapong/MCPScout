@@ -1,46 +1,83 @@
-# AGENTS.md - MCPSpider Development Guide
+# AGENTS.md - MCPScout Development Guide
 
 ## Project Overview
 
-MCPSpider is an AI-powered multi-source search engine with MCP (Model Context Protocol) interface. It features hybrid crawling (httpx + Playwright), parallel search aggregation, smart link filtering, and advanced content extraction.
+MCPScout is an AI-powered multi-source intelligence platform with MCP (Model Context Protocol) interface. It features hybrid crawling (httpx + Playwright + Camoufox), parallel search aggregation, social media scrapers, and advanced content extraction.
 
 ## Build & Development Commands
 
 ```bash
-# Install dependencies
+# Using Makefile (recommended)
+make install      # pip install -e .
+make dev          # install with dev deps + playwright
+make server       # python -m mcp_server
+
+# Or manual
 pip install -e .
-pip install -e ".[dev]"  # with dev tools
-playwright install chromium  # for JS rendering
+pip install -e ".[dev]"
+playwright install chromium
 
 # Run MCP server (stdio transport)
-python -m mcpspider server
+python -m mcp_server
 
 # CLI commands
-mcpspider search -q "query" -s duckduckgo google
-mcpspider crawl -u "https://example.com"
-mcpspider read -u "https://example.com" -f text  # view in terminal
+mcpscout search -q "query"
+mcpscout crawl -u "https://example.com"
+mcpscout read -u "https://example.com"
 
 # Docker
-docker build -t mcpspider .
-docker run -it mcpspider server
+make docker-build
+make docker-run
 ```
+
+## Version Management
+
+Version is managed from single source: `mcpspider/version.py`
+
+```bash
+# Auto-release with changelog generation
+make patch        # 1.0.0 -> 1.0.1 (bug fixes)
+make minor        # 1.0.0 -> 1.1.0 (new features)
+make major        # 1.0.0 -> 2.0.0 (breaking changes)
+
+# Or directly
+python scripts/release.py patch
+python scripts/release.py 1.2.3  # explicit version
+```
+
+**Release process:**
+1. Bumps version in `version.py` and `pyproject.toml`
+2. Generates changelog from git commits (conventional commits)
+3. Updates `CHANGELOG.md`
+4. Creates git commit + tag
+5. Pushes to GitHub
+6. Creates GitHub release
+
+**Conventional commits for changelog:**
+- `feat:` -> Added
+- `fix:` -> Fixed
+- `refactor:`, `docs:`, `perf:` -> Changed
+- `remove:`, `break:` -> Removed
 
 ## Testing
 
 ```bash
-pytest                           # all tests
+make test         # all tests
+make test-cov     # with coverage
+
+# Or manual
+pytest
+pytest --cov=.
 pytest tests/test_crawler.py     # single file
 pytest -k "test_search"          # by name
-pytest --cov=mcpspider           # coverage
 ```
 
 ## Linting & Formatting
 
 ```bash
-ruff check .           # lint
-ruff check --fix .     # auto-fix
-ruff format .          # format
-ruff format --check .  # check only
+make lint         # ruff check .
+make lint-fix     # ruff check --fix .
+make format       # ruff format .
 ```
 
 ## Code Style Guidelines
@@ -48,7 +85,7 @@ ruff format --check .  # check only
 ### Imports
 - `from __future__ import annotations` at top of every file
 - Group: stdlib → third-party → local
-- Absolute imports from `mcpspider` package
+- Absolute imports from project root
 - No wildcard imports
 
 ### Types
@@ -87,7 +124,7 @@ ruff format --check .  # check only
 from typing import Annotated
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("mcpspider")
+mcp = FastMCP("mcpscout")
 
 @mcp.tool()
 async def tool_name(
@@ -97,41 +134,62 @@ async def tool_name(
     return result_string
 ```
 
-## Architecture
+## Project Structure
 
 ```
-mcpspider/
-├── mcp_server/         # FastMCP server (10 tools)
+MCPScout/
+├── mcp_server/           # FastMCP server (21 tools)
+│   ├── server.py         # Main MCP tools
+│   └── unified.py        # Unified scout interface
 ├── crawler/
-│   ├── engine.py       # Async httpx crawler
-│   ├── hybrid.py       # httpx + Playwright smart routing
-│   ├── smart_crawler.py # Heuristic link filtering
-│   └── extractor.py    # Tables, code, images extraction
+│   ├── engine.py         # Async httpx crawler
+│   ├── hybrid.py         # httpx + Playwright
+│   ├── stealth.py        # Camoufox stealth browser
+│   ├── smart_crawler.py  # Heuristic link filtering
+│   └── extractor.py      # Tables, code, images
 ├── search/
-│   └── aggregator.py   # Multi-engine parallel search
+│   └── aggregator.py     # Multi-engine parallel search
+├── social/
+│   ├── reddit.py         # Reddit scraper
+│   ├── twitter.py        # Twitter/X scraper
+│   ├── youtube.py        # YouTube scraper
+│   └── github.py         # GitHub API scraper
 ├── summarizer/
-│   └── ai_summarizer.py
-├── cli.py              # CLI: server, search, crawl, read
-└── __main__.py
+│   └── ai_summarizer.py  # OpenAI summarization
+├── utils/
+│   └── rate_limiter.py   # Per-domain rate limiting
+├── mcpspider/
+│   └── version.py        # Single version source
+├── scripts/
+│   └── release.py        # Auto-release script
+├── cli.py                # CLI interface
+├── __main__.py           # Module entry point
+├── Makefile              # Common commands
+├── pyproject.toml        # Package config
+└── Dockerfile            # Docker support
 ```
 
 ## Key Patterns
 
-- **Hybrid crawling**: Try httpx first, auto-detect JS, fallback to Playwright
+- **Hybrid crawling**: httpx → Playwright → Camoufox auto-fallback
+- **Stealth mode**: Bypasses Cloudflare, Akamai, DataDome
 - **Smart filtering**: `SmartCrawler` with heuristic link scoring
 - **Parallel search**: `SearchAggregator` with `asyncio.gather()`
 - **Content extraction**: `ContentExtractor` for tables/code/images
-- **Result containers**: `@dataclass` with `field(default_factory=list)`
+- **Rate limiting**: Per-domain tracking with adaptive delays
+- **Social scrapers**: No API keys required (public endpoints)
 
-## Hybrid Crawler (2026 Pattern)
+## MCP Tools
 
-```python
-from mcpspider.crawler.hybrid import HybridCrawler
-
-crawler = HybridCrawler()
-result = await crawler.crawl("https://example.com")
-# Auto-detects JS, uses httpx or Playwright accordingly
-```
+| Category | Tools |
+|----------|-------|
+| Web Search | `web_search`, `search_and_summarize`, `smart_search`, `deep_search` |
+| Web Crawl | `hybrid_crawl`, `crawl_url`, `extract_content`, `crawl_recursive` |
+| Reddit | `search_reddit`, `get_subreddit`, `get_reddit_post` |
+| Twitter/X | `search_twitter`, `get_user_tweets` |
+| YouTube | `search_youtube`, `get_youtube_channel`, `get_youtube_content` |
+| GitHub | `search_github`, `get_github_user`, `get_github_repo`, `get_github_readme` |
+| Unified | `scout`, `scout_multi` |
 
 ## Environment Variables
 

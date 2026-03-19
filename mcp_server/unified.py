@@ -13,14 +13,14 @@ import json
 from typing import Any, Literal
 
 # Import all scrapers
-from mcpspider.crawler.engine import CrawlerEngine
-from mcpspider.crawler.hybrid import HybridCrawler
-from mcpspider.crawler.stealth import MultiBrowserCrawler, format_stealth_result
-from mcpspider.search.aggregator import SearchAggregator
-from mcpspider.social.reddit import RedditScraper, format_posts_markdown
-from mcpspider.social.twitter import TwitterScraper, format_tweets
-from mcpspider.social.youtube import YouTubeScraper, format_youtube_videos
-from mcpspider.social.github import GitHubScraper, format_github_repos, format_github_user
+from crawler.engine import CrawlerEngine
+from crawler.hybrid import HybridCrawler
+from crawler.stealth import MultiBrowserCrawler, format_stealth_result
+from search.aggregator import SearchAggregator
+from social.reddit import RedditScraper, format_posts_markdown
+from social.twitter import TwitterScraper, format_tweets
+from social.youtube import YouTubeScraper, format_youtube_videos
+from social.github import GitHubScraper, format_github_repos, format_github_user
 
 # Initialize all components
 crawler = CrawlerEngine()

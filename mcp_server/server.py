@@ -8,17 +8,17 @@ from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
 
-from mcpspider.crawler.engine import CrawlerEngine
-from mcpspider.crawler.smart_crawler import SmartCrawler
-from mcpspider.crawler.extractor import ContentExtractor
-from mcpspider.crawler.hybrid import HybridCrawler, RenderMethod
-from mcpspider.crawler.stealth import StealthBrowser, MultiBrowserCrawler, format_stealth_result
-from mcpspider.search.aggregator import SearchAggregator
-from mcpspider.summarizer.ai_summarizer import AISummarizer
-from mcpspider.social.reddit import RedditScraper, format_posts_markdown
-from mcpspider.social.twitter import TwitterScraper, format_tweets
-from mcpspider.social.youtube import YouTubeScraper, format_youtube_videos
-from mcpspider.social.github import GitHubScraper, format_github_repos, format_github_user
+from crawler.engine import CrawlerEngine
+from crawler.smart_crawler import SmartCrawler
+from crawler.extractor import ContentExtractor
+from crawler.hybrid import HybridCrawler, RenderMethod
+from crawler.stealth import StealthBrowser, MultiBrowserCrawler, format_stealth_result
+from search.aggregator import SearchAggregator
+from summarizer.ai_summarizer import AISummarizer
+from social.reddit import RedditScraper, format_posts_markdown
+from social.twitter import TwitterScraper, format_tweets
+from social.youtube import YouTubeScraper, format_youtube_videos
+from social.github import GitHubScraper, format_github_repos, format_github_user
 
 # Initialize FastMCP server
 mcp = FastMCP("mcpscout")

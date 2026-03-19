@@ -13,7 +13,7 @@ from urllib.parse import urlparse, urljoin
 import httpx
 from bs4 import BeautifulSoup, Tag
 
-from mcpspider.utils.rate_limiter import AdaptiveRateLimiter, RateLimitConfig
+from utils.rate_limiter import AdaptiveRateLimiter, RateLimitConfig
 
 logger = logging.getLogger(__name__)
 

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
-from mcpspider.crawler.engine import CrawlerEngine, CrawlResult
+from crawler.engine import CrawlerEngine, CrawlResult
 
 logger = logging.getLogger(__name__)
 

@@ -49,7 +49,7 @@ def main():
 
     if args.command == "server":
         # Run MCP server (blocking call)
-        from mcpspider.mcp_server.server import main as server_main
+        from mcp_server.server import main as server_main
         server_main()
     elif args.command == "search":
         asyncio.run(run_search(args))
@@ -62,7 +62,7 @@ def main():
 async def run_search(args):
     """Run search command."""
     import json
-    from mcpspider.search.aggregator import SearchAggregator
+    from search.aggregator import SearchAggregator
 
     if not args.query:
         print("Error: --query is required for search command", file=sys.stderr)
@@ -93,7 +93,7 @@ async def run_search(args):
 
 async def run_crawl(args):
     """Run crawl command."""
-    from mcpspider.crawler.engine import CrawlerEngine
+    from crawler.engine import CrawlerEngine
 
     if not args.url:
         print("Error: --url is required for crawl command", file=sys.stderr)
@@ -119,7 +119,7 @@ async def run_crawl(args):
 async def run_read(args):
     """Run read command - just view webpage content in terminal."""
     import httpx
-    from mcpspider.crawler.extractor import ContentExtractor
+    from crawler.extractor import ContentExtractor
 
     if not args.url:
         print("Error: --url is required for read command", file=sys.stderr)

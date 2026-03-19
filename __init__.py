@@ -1,3 +1,5 @@
 """MCPScout - AI-powered multi-source intelligence platform."""
 
-__version__ = "1.0.0"
+from mcpspider.version import __version__
+
+__all__ = ["__version__"]

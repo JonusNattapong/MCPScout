@@ -34,22 +34,24 @@ pip install -e .
 playwright install chromium
 
 # Run MCP server
-python -m mcpspider server
+python -m mcp_server
 
 # CLI
-mcpspider search -q "AI news"
-mcpspider crawl -u "https://example.com"
-mcpspider read -u "https://example.com"
+mcpscout search -q "AI news"
+mcpscout crawl -u "https://example.com"
+mcpscout read -u "https://example.com"
 ```
 
 ## MCP Integration
+
+Add to your MCP client config:
 
 ```json
 {
   "mcpServers": {
     "mcpscout": {
       "command": "python",
-      "args": ["-m", "mcpspider", "server"]
+      "args": ["-m", "mcp_server"]
     }
   }
 }

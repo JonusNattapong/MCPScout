@@ -8,8 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
+COPY pyproject.toml README.md ./
+COPY mcpspider/ ./mcpspider/
+RUN pip install --no-cache-dir .
 
 # Copy source code
 COPY __init__.py __main__.py cli.py ./

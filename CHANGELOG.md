@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-03-26
+
+### Added
+- ship research workflows and performance upgrades
+- add auto version and changelog system
+
+### Changed
+- update README with comprehensive documentation
+- update AGENTS.md with new structure and version management
+- flatten project structure
+
+### Fixed
+- Dockerfile - copy README.md before pip install
+
+### Other
+- add GitHub issue and PR templates
+- add GitHub documentation files
+
 ## [1.0.0] - 2026-03-20
 
 ### Added

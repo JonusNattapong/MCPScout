@@ -1,6 +1,6 @@
 [project]
 name = "mcpsearch"
-version = "1.0.0"
+version = "1.1.0"
 description = "MCPSearch - AI-powered multi-source intelligence platform"
 readme = "README.md"
 requires-python = ">=3.11"

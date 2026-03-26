@@ -1,13 +1,13 @@
-# Contributing to MCPScout
+# Contributing to MCPSearch
 
-Thank you for your interest in contributing to MCPScout! This document provides guidelines for contributing.
+Thank you for your interest in contributing to MCPSearch! This document provides guidelines for contributing.
 
 ## Getting Started
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/your-username/MCPScout.git`
+2. Clone your fork: `git clone https://github.com/your-username/MCPSearch.git`
 3. Create a branch: `git checkout -b feature/your-feature`
-4. Install dependencies: `pip install -e ".[dev]"`
+4. Install dependencies: `make dev`
 5. Make your changes
 6. Run tests: `pytest`
 7. Run linter: `ruff check .`
@@ -19,9 +19,10 @@ Thank you for your interest in contributing to MCPScout! This document provides 
 
 ```bash
 # Install in development mode
-pip install -e ".[dev]"
+make dev
 
-# Install Playwright browsers
+# Or manually
+pip install -e ".[dev]"
 playwright install chromium
 
 # Run tests
@@ -40,29 +41,48 @@ ruff check --fix .
 - Use `async`/`await` for all I/O operations
 - Follow existing patterns in the codebase
 - Add docstrings to public functions
-- Keep functions under 100 lines
+- Prefer shared handler logic in `mcp_server/handlers.py` for unified actions
+- Update docs when MCP tools or CLI commands change
 
 ## Project Structure
 
 ```
-MCPScout/
+MCPSearch/
+├── agents/            # Research orchestration
 ├── crawler/          # Web crawling engines
+├── mcp_server/       # MCP protocol server and shared action handlers
 ├── search/           # Search aggregators
 ├── social/           # Social media scrapers
-├── mcp_server/       # MCP protocol server
 ├── summarizer/       # AI summarization
-├── utils/            # Utilities (rate limiter, etc.)
+├── tests/            # Unit and integration tests
+├── utils/            # Utilities (rate limiter, cache, dedup, etc.)
 ├── cli.py            # CLI interface
-└── tests/            # Test suite
+└── docs/             # Project docs and implementation notes
 ```
 
 ## Adding a New Tool
 
-1. Implement the tool function in the appropriate module
-2. Add to `mcp_server/server.py` with `@mcp.tool()` decorator
-3. Include type hints for all parameters
-4. Add tests in `tests/`
-5. Update documentation
+1. Implement reusable logic in the appropriate module or in `mcp_server/handlers.py` if it is part of the unified action flow.
+2. Add the MCP-facing tool in [`mcp_server/server.py`](mcp_server/server.py) with `@mcp.tool()`.
+3. Include type hints for all parameters.
+4. Add or extend tests in [`tests/`](tests).
+5. Update [`README.md`](README.md) and any relevant docs under [`docs/`](docs).
+
+## Running Useful Checks
+
+```bash
+make test
+make test-cov
+make lint
+make format
+python3 final_verification.py
+```
+
+## Documentation Expectations
+
+- Keep README examples aligned with current tool names such as `mcpsearch`, `mcpsearch_multi`, `investigate`, `compare`, and `trending`.
+- If a feature is optional at install time, say so clearly.
+- If behavior changed but a legacy tool still exists, document which path is preferred.
 
 ## Reporting Issues
 

@@ -4,5 +4,16 @@ services:
     container_name: mcpspider
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./mcpsearch_cache.db:/app/mcpsearch_cache.db
     stdin_open: true
     tty: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

@@ -35,7 +35,7 @@ Paste error message here
 
 - OS: [e.g., Windows 11, macOS 14, Ubuntu 22.04]
 - Python version: [e.g., 3.11.5]
-- MCPScout version: [e.g., 1.0.0]
+- MCPSearch version: [e.g., 1.0.0]
 
 ## Additional Context
 

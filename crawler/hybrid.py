@@ -27,6 +27,8 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from utils.cache import CrawlCache, CacheConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -143,15 +145,37 @@ class JSPageDetector:
 class PlaywrightRenderer:
     """Render pages using Playwright."""
 
+    # Resource types to block for faster crawling
+    BLOCKED_RESOURCE_TYPES = {
+        "image",
+        "font",
+        "media",
+        "stylesheet",
+    }
+
+    # URL patterns to block (analytics, ads, tracking)
+    BLOCKED_URL_PATTERNS = [
+        r"google-analytics\.com",
+        r"googletagmanager\.com",
+        r"doubleclick\.net",
+        r"facebook\.net",
+        r"hotjar\.com",
+        r"mixpanel\.com",
+        r"segment\.io",
+        r"amplitude\.com",
+    ]
+
     def __init__(
         self,
         headless: bool = True,
         timeout: float = 30.0,
         wait_for_selector: str | None = None,
+        block_resources: bool = True,
     ):
         self.headless = headless
         self.timeout = timeout
         self.wait_for_selector = wait_for_selector
+        self.block_resources = block_resources
         self._browser = None
         self._context = None
 
@@ -171,6 +195,29 @@ class PlaywrightRenderer:
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 viewport={"width": 1920, "height": 1080},
             )
+
+            # Setup request blocking for faster crawling
+            if self.block_resources:
+                await self._context.route("**/*", self._route_handler)
+
+    async def _route_handler(self, route) -> None:
+        """Block unnecessary resources to speed up page loading."""
+        resource_type = route.request.resource_type
+        url = route.request.url
+
+        # Block by resource type
+        if resource_type in self.BLOCKED_RESOURCE_TYPES:
+            await route.abort()
+            return
+
+        # Block by URL pattern (analytics, ads, tracking)
+        for pattern in self.BLOCKED_URL_PATTERNS:
+            if re.search(pattern, url, re.IGNORECASE):
+                await route.abort()
+                return
+
+        # Allow all other requests
+        await route.continue_()
 
     async def render(self, url: str) -> HybridResult:
         """Render a URL using Playwright."""
@@ -256,16 +303,25 @@ class HybridCrawler:
         headless: bool = True,
         auto_detect_js: bool = True,
         force_browser_domains: list[str] | None = None,
+        enable_cache: bool = True,
+        cache_config: CacheConfig | None = None,
+        block_resources: bool = True,
     ):
         self.max_concurrent = max_concurrent
         self.timeout = timeout
         self.headless = headless
         self.auto_detect_js = auto_detect_js
         self.force_browser_domains = force_browser_domains or []
+        self.enable_cache = enable_cache
+        self.block_resources = block_resources
 
         self._httpx_client: httpx.AsyncClient | None = None
         self._playwright_renderer: PlaywrightRenderer | None = None
         self._semaphore = asyncio.Semaphore(max_concurrent)
+        self._cache: CrawlCache | None = None
+        
+        if enable_cache:
+            self._cache = CrawlCache(cache_config)
 
     async def _get_httpx_client(self) -> httpx.AsyncClient:
         """Get or create httpx client."""
@@ -287,6 +343,7 @@ class HybridCrawler:
             self._playwright_renderer = PlaywrightRenderer(
                 headless=self.headless,
                 timeout=self.timeout,
+                block_resources=self.block_resources,
             )
         return self._playwright_renderer
 
@@ -303,6 +360,7 @@ class HybridCrawler:
         url: str,
         force_browser: bool = False,
         wait_for_selector: str | None = None,
+        use_cache: bool = True,
     ) -> HybridResult:
         """Crawl a URL with smart routing.
 
@@ -310,14 +368,44 @@ class HybridCrawler:
             url: URL to crawl
             force_browser: Force Playwright rendering
             wait_for_selector: CSS selector to wait for (forces browser)
+            use_cache: Whether to use cache (default: True)
         """
+        # Check cache first
+        if use_cache and self.enable_cache and self._cache:
+            cached = self._cache.get(url)
+            if cached:
+                logger.debug(f"Cache hit for {url}")
+                return HybridResult(
+                    url=url,
+                    html=cached["content"],
+                    title=cached["metadata"].get("title", ""),
+                    render_method=RenderMethod(cached["metadata"].get("render_method", "httpx")),
+                    load_time_ms=0,
+                    content_length=len(cached["content"]),
+                    status_code=cached["metadata"].get("status_code", 200),
+                )
+
         async with self._semaphore:
             # Force browser if requested
             if force_browser or wait_for_selector or self._should_force_browser(url):
                 renderer = self._get_playwright_renderer()
                 if wait_for_selector:
                     renderer.wait_for_selector = wait_for_selector
-                return await renderer.render(url)
+                result = await renderer.render(url)
+                
+                # Cache the result
+                if use_cache and self.enable_cache and self._cache and not result.error:
+                    self._cache.set(
+                        url,
+                        result.html,
+                        metadata={
+                            "title": result.title,
+                            "render_method": result.render_method.value,
+                            "status_code": result.status_code,
+                        },
+                    )
+                
+                return result
 
             # Step 1: Try httpx first (fast)
             start_time = time.time()
@@ -361,7 +449,32 @@ class HybridCrawler:
                             # Use Playwright result
                             browser_result.js_detected = True
                             browser_result.js_framework = analysis["framework"]
+                            
+                            # Cache the result
+                            if use_cache and self.enable_cache and self._cache:
+                                self._cache.set(
+                                    url,
+                                    browser_result.html,
+                                    metadata={
+                                        "title": browser_result.title,
+                                        "render_method": browser_result.render_method.value,
+                                        "status_code": browser_result.status_code,
+                                    },
+                                )
+                            
                             return browser_result
+
+                # Cache the httpx result
+                if use_cache and self.enable_cache and self._cache:
+                    self._cache.set(
+                        url,
+                        result.html,
+                        metadata={
+                            "title": result.title,
+                            "render_method": result.render_method.value,
+                            "status_code": result.status_code,
+                        },
+                    )
 
                 return result
 
@@ -371,15 +484,30 @@ class HybridCrawler:
                 # Fallback to Playwright on httpx error
                 logger.info(f"Falling back to Playwright for {url}")
                 renderer = self._get_playwright_renderer()
-                return await renderer.render(url)
+                result = await renderer.render(url)
+                
+                # Cache the result
+                if use_cache and self.enable_cache and self._cache and not result.error:
+                    self._cache.set(
+                        url,
+                        result.html,
+                        metadata={
+                            "title": result.title,
+                            "render_method": result.render_method.value,
+                            "status_code": result.status_code,
+                        },
+                    )
+                
+                return result
 
     async def crawl_batch(
         self,
         urls: list[str],
         force_browser: bool = False,
+        use_cache: bool = True,
     ) -> list[HybridResult]:
         """Crawl multiple URLs with smart routing."""
-        tasks = [self.crawl(url, force_browser=force_browser) for url in urls]
+        tasks = [self.crawl(url, force_browser=force_browser, use_cache=use_cache) for url in urls]
         return await asyncio.gather(*tasks)
 
     async def close(self):
@@ -388,6 +516,18 @@ class HybridCrawler:
             await self._httpx_client.aclose()
         if self._playwright_renderer:
             await self._playwright_renderer.close()
+    
+    def get_cache_stats(self) -> dict[str, Any] | None:
+        """Get cache statistics if caching is enabled."""
+        if self._cache:
+            return self._cache.get_stats()
+        return None
+    
+    def clear_cache(self) -> int:
+        """Clear cache if caching is enabled."""
+        if self._cache:
+            return self._cache.clear()
+        return 0
 
 
 class HybridCrawlResult:

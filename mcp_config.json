@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "mcpscout": {
+    "mcpsearch": {
       "command": "python",
       "args": ["-m", "mcp_server"],
       "env": {

@@ -14,6 +14,7 @@ import httpx
 from bs4 import BeautifulSoup, Tag
 
 from utils.rate_limiter import AdaptiveRateLimiter, RateLimitConfig
+from utils.cache import crawl_cache
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ class CrawlerEngine:
         self,
         max_concurrent: int = 10,
         timeout: float = 30.0,
-        user_agent: str = "MCPScout/1.0.0",
+        user_agent: str = "MCPSearch/1.0.0",
         rate_limit: RateLimitConfig | None = None,
     ):
         self.max_concurrent = max_concurrent
@@ -277,6 +278,34 @@ class CrawlerEngine:
         max_depth: int,
     ) -> CrawlResult:
         """Crawl a single URL and return structured result."""
+        # Check cache first
+        cached = crawl_cache.get(url)
+        if cached:
+            logger.debug(f"Cache hit for {url}")
+            # Reconstruct CrawlResult from cached data
+            result = CrawlResult(
+                url=cached["url"],
+                depth=depth,
+                title="",  # Title not stored in cache, would need enhancement
+                content=cached["content"],
+                markdown="",  # Markdown not stored in cache
+                structured={},  # Structured not stored in cache
+                links=[],  # Links not stored in cache
+                metadata=cached.get("metadata", {}),
+            )
+            # For now, we'll return a basic result with content
+            # A more sophisticated cache would store the full CrawlResult
+            return CrawlResult(
+                url=cached["url"],
+                depth=depth,
+                title="Cached content",
+                content=cached["content"],
+                markdown="",
+                structured={},
+                links=[],
+                metadata=cached.get("metadata", {}),
+            )
+
         # Apply rate limiting before request
         await self.rate_limiter.wait(url)
 
@@ -298,6 +327,14 @@ class CrawlerEngine:
                     response.status_code,
                     response_time,
                     dict(response.headers),
+                )
+
+                # Cache the content
+                crawl_cache.set(
+                    url=url,
+                    content=response.text,
+                    metadata={"status_code": response.status_code, "headers": dict(response.headers)},
+                    ttl_seconds=3600  # 1 hour TTL
                 )
 
                 soup = BeautifulSoup(response.text, "lxml")

@@ -12,6 +12,14 @@ from urllib.parse import quote_plus, urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+try:
+    from selectolax.parser import HTMLParser
+    HAS_SELECTOLAX = True
+except ImportError:
+    HAS_SELECTOLAX = False
+
+from utils.http_client import AsyncHttpClientConfig, build_async_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,30 +63,61 @@ class DuckDuckGoEngine(SearchEngine):
             )
             response.raise_for_status()
 
-            soup = BeautifulSoup(response.text, "lxml")
-            results = []
-
-            for i, result in enumerate(soup.select(".result__body"), 1):
-                if i > max_results:
-                    break
-
-                title_tag = result.select_one(".result__title a")
-                snippet_tag = result.select_one(".result__snippet")
-
-                if title_tag:
-                    results.append(SearchResult(
-                        title=title_tag.get_text(strip=True),
-                        url=self._clean_url(title_tag.get("href", "")),
-                        snippet=snippet_tag.get_text(strip=True) if snippet_tag else "",
-                        source=self.name,
-                        rank=i,
-                    ))
-
-            return results
+            # Use selectolax for faster parsing if available
+            if HAS_SELECTOLAX:
+                return self._parse_selectolax(response.text, max_results)
+            else:
+                return self._parse_beautifulsoup(response.text, max_results)
 
         except Exception as e:
             logger.error(f"DuckDuckGo search error: {e}")
             return []
+
+    def _parse_selectolax(self, html: str, max_results: int) -> list[SearchResult]:
+        """Parse DuckDuckGo results using selectolax (faster)."""
+        results = []
+        tree = HTMLParser(html)
+
+        for i, result in enumerate(tree.css(".result__body"), 1):
+            if i > max_results:
+                break
+
+            title_tag = result.css_first(".result__title a")
+            snippet_tag = result.css_first(".result__snippet")
+
+            if title_tag:
+                results.append(SearchResult(
+                    title=title_tag.text(strip=True),
+                    url=self._clean_url(title_tag.attributes.get("href", "")),
+                    snippet=snippet_tag.text(strip=True) if snippet_tag else "",
+                    source=self.name,
+                    rank=i,
+                ))
+
+        return results
+
+    def _parse_beautifulsoup(self, html: str, max_results: int) -> list[SearchResult]:
+        """Parse DuckDuckGo results using BeautifulSoup (fallback)."""
+        results = []
+        soup = BeautifulSoup(html, "lxml")
+
+        for i, result in enumerate(soup.select(".result__body"), 1):
+            if i > max_results:
+                break
+
+            title_tag = result.select_one(".result__title a")
+            snippet_tag = result.select_one(".result__snippet")
+
+            if title_tag:
+                results.append(SearchResult(
+                    title=title_tag.get_text(strip=True),
+                    url=self._clean_url(title_tag.get("href", "")),
+                    snippet=snippet_tag.get_text(strip=True) if snippet_tag else "",
+                    source=self.name,
+                    rank=i,
+                ))
+
+        return results
 
     def _clean_url(self, url: str) -> str:
         """Extract actual URL from DuckDuckGo redirect."""
@@ -105,31 +144,63 @@ class GoogleEngine(SearchEngine):
             )
             response.raise_for_status()
 
-            soup = BeautifulSoup(response.text, "lxml")
-            results = []
-
-            for i, div in enumerate(soup.select("div.g"), 1):
-                if i > max_results:
-                    break
-
-                link = div.select_one("a")
-                title = div.select_one("h3")
-                snippet = div.select_one("div.VwiC3b")
-
-                if link and title:
-                    results.append(SearchResult(
-                        title=title.get_text(strip=True),
-                        url=link.get("href", ""),
-                        snippet=snippet.get_text(strip=True) if snippet else "",
-                        source=self.name,
-                        rank=i,
-                    ))
-
-            return results
+            # Use selectolax for faster parsing if available
+            if HAS_SELECTOLAX:
+                return self._parse_selectolax(response.text, max_results)
+            else:
+                return self._parse_beautifulsoup(response.text, max_results)
 
         except Exception as e:
             logger.error(f"Google search error: {e}")
             return []
+
+    def _parse_selectolax(self, html: str, max_results: int) -> list[SearchResult]:
+        """Parse Google results using selectolax (faster)."""
+        results = []
+        tree = HTMLParser(html)
+
+        for i, div in enumerate(tree.css("div.g"), 1):
+            if i > max_results:
+                break
+
+            link = div.css_first("a")
+            title = div.css_first("h3")
+            snippet = div.css_first("div.VwiC3b")
+
+            if link and title:
+                results.append(SearchResult(
+                    title=title.text(strip=True),
+                    url=link.attributes.get("href", ""),
+                    snippet=snippet.text(strip=True) if snippet else "",
+                    source=self.name,
+                    rank=i,
+                ))
+
+        return results
+
+    def _parse_beautifulsoup(self, html: str, max_results: int) -> list[SearchResult]:
+        """Parse Google results using BeautifulSoup (fallback)."""
+        results = []
+        soup = BeautifulSoup(html, "lxml")
+
+        for i, div in enumerate(soup.select("div.g"), 1):
+            if i > max_results:
+                break
+
+            link = div.select_one("a")
+            title = div.select_one("h3")
+            snippet = div.select_one("div.VwiC3b")
+
+            if link and title:
+                results.append(SearchResult(
+                    title=title.get_text(strip=True),
+                    url=link.get("href", ""),
+                    snippet=snippet.get_text(strip=True) if snippet else "",
+                    source=self.name,
+                    rank=i,
+                ))
+
+        return results
 
 
 class BingEngine(SearchEngine):
@@ -147,30 +218,61 @@ class BingEngine(SearchEngine):
             )
             response.raise_for_status()
 
-            soup = BeautifulSoup(response.text, "lxml")
-            results = []
-
-            for i, li in enumerate(soup.select("li.b_algo"), 1):
-                if i > max_results:
-                    break
-
-                link = li.select_one("h2 a")
-                snippet = li.select_one("div.b_caption p")
-
-                if link:
-                    results.append(SearchResult(
-                        title=link.get_text(strip=True),
-                        url=link.get("href", ""),
-                        snippet=snippet.get_text(strip=True) if snippet else "",
-                        source=self.name,
-                        rank=i,
-                    ))
-
-            return results
+            # Use selectolax for faster parsing if available
+            if HAS_SELECTOLAX:
+                return self._parse_selectolax(response.text, max_results)
+            else:
+                return self._parse_beautifulsoup(response.text, max_results)
 
         except Exception as e:
             logger.error(f"Bing search error: {e}")
             return []
+
+    def _parse_selectolax(self, html: str, max_results: int) -> list[SearchResult]:
+        """Parse Bing results using selectolax (faster)."""
+        results = []
+        tree = HTMLParser(html)
+
+        for i, li in enumerate(tree.css("li.b_algo"), 1):
+            if i > max_results:
+                break
+
+            link = li.css_first("h2 a")
+            snippet = li.css_first("div.b_caption p")
+
+            if link:
+                results.append(SearchResult(
+                    title=link.text(strip=True),
+                    url=link.attributes.get("href", ""),
+                    snippet=snippet.text(strip=True) if snippet else "",
+                    source=self.name,
+                    rank=i,
+                ))
+
+        return results
+
+    def _parse_beautifulsoup(self, html: str, max_results: int) -> list[SearchResult]:
+        """Parse Bing results using BeautifulSoup (fallback)."""
+        results = []
+        soup = BeautifulSoup(html, "lxml")
+
+        for i, li in enumerate(soup.select("li.b_algo"), 1):
+            if i > max_results:
+                break
+
+            link = li.select_one("h2 a")
+            snippet = li.select_one("div.b_caption p")
+
+            if link:
+                results.append(SearchResult(
+                    title=link.get_text(strip=True),
+                    url=link.get("href", ""),
+                    snippet=snippet.get_text(strip=True) if snippet else "",
+                    source=self.name,
+                    rank=i,
+                ))
+
+        return results
 
 
 class SearchAggregator:
@@ -180,20 +282,34 @@ class SearchAggregator:
         self,
         engines: list[str] | None = None,
         max_concurrent: int = 5,
+        *,
+        enable_cache: bool = True,
+        cache_ttl: int = 900,
     ):
         self.engine_names = engines or ["duckduckgo", "google", "bing"]
         self.max_concurrent = max_concurrent
+        self.enable_cache = enable_cache
+        self.cache_ttl = cache_ttl
         self._client: httpx.AsyncClient | None = None
 
     def _get_engines(self) -> list[SearchEngine]:
         """Initialize search engines."""
         if self._client is None:
-            self._client = httpx.AsyncClient(
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                },
-                follow_redirects=True,
+            self._client = build_async_client(
+                AsyncHttpClientConfig(
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    },
+                    follow_redirects=True,
+                    timeout=15.0,
+                    max_connections=max(self.max_concurrent * 2, 10),
+                    max_keepalive_connections=max(self.max_concurrent, 5),
+                    enable_cache=self.enable_cache,
+                    cache_ttl=self.cache_ttl,
+                    # Search endpoints often do not expose useful cache headers.
+                    always_cache=True,
+                )
             )
 
         engine_classes = {
@@ -258,6 +374,6 @@ class SearchAggregator:
 
     async def close(self):
         """Close the HTTP client."""
-        if self._client:
+        if self._client is not None:
             await self._client.aclose()
             self._client = None

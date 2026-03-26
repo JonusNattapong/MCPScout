@@ -8,13 +8,13 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in MCPScout, please report it responsibly.
+If you discover a security vulnerability in MCPSearch, please report it responsibly.
 
 **DO NOT open a public issue for security vulnerabilities.**
 
 ### How to Report
 
-1. Email: [Create an issue on GitHub](https://github.com/JonusNattapong/MCPScout/issues) with label "security"
+1. Email: [Create an issue on GitHub](https://github.com/JonusNattapong/MCPSearch/issues) with label "security"
 2. Or contact the maintainer directly
 
 ### What to Include
@@ -32,9 +32,9 @@ If you discover a security vulnerability in MCPScout, please report it responsib
 
 ## Security Considerations
 
-### MCPScout is a Tool
+### MCPSearch is a Tool
 
-MCPScout is designed for legitimate web crawling and data extraction. Users are responsible for:
+MCPSearch is designed for legitimate web crawling and data extraction. Users are responsible for:
 
 - Respecting website terms of service
 - Following robots.txt directives  
@@ -43,21 +43,21 @@ MCPScout is designed for legitimate web crawling and data extraction. Users are 
 
 ### API Keys
 
-- MCPScout works without API keys for most features
+- MCPSearch works without API keys for most features
 - If you add OpenAI API key for summarization, keep it secure
 - Never commit API keys to version control
 - Use environment variables for sensitive data
 
 ### Network Security
 
-- MCPScout makes outbound HTTP requests
+- MCPSearch makes outbound HTTP requests
 - Be aware of what data is being sent
 - Rate limiting is built-in to prevent abuse
 - Stealth mode should be used responsibly
 
 ## Best Practices
 
-1. Run MCPScout in isolated environments when possible
+1. Run MCPSearch in isolated environments when possible
 2. Keep dependencies updated
 3. Review crawled content before sharing
 4. Use Docker for deployment

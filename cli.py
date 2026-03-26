@@ -1,4 +1,4 @@
-"""CLI entry point for MCPScout."""
+"""CLI entry point for MCPSearch."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ import sys
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="MCPScout - AI-powered multi-source intelligence platform",
+        description="MCPSearch - AI-powered multi-source intelligence platform",
     )
     parser.add_argument(
         "command",
-        choices=["server", "search", "crawl", "read"],
+        choices=["server", "search", "crawl", "read", "research", "compare", "trending"],
         help="Command to run",
     )
     parser.add_argument(
@@ -44,6 +44,27 @@ def main():
         default="markdown",
         help="Output format",
     )
+    parser.add_argument(
+        "--depth",
+        choices=["shallow", "medium", "deep"],
+        default="medium",
+        help="Research depth for investigate command",
+    )
+    parser.add_argument(
+        "--no-social",
+        action="store_true",
+        help="Exclude social media research",
+    )
+    parser.add_argument(
+        "--summarize",
+        action="store_true",
+        help="Include AI summary in results",
+    )
+    parser.add_argument(
+        "--compare",
+        nargs="+",
+        help="Topics to compare (for compare command)",
+    )
 
     args = parser.parse_args()
 
@@ -57,6 +78,18 @@ def main():
         asyncio.run(run_crawl(args))
     elif args.command == "read":
         asyncio.run(run_read(args))
+    elif args.command == "research":
+        if not args.query:
+            print("Error: --query is required for research command", file=sys.stderr)
+            sys.exit(1)
+        asyncio.run(run_research(args))
+    elif args.command == "compare":
+        if not args.compare or len(args.compare) < 2:
+            print("Error: --compare requires at least 2 topics", file=sys.stderr)
+            sys.exit(1)
+        asyncio.run(run_compare(args))
+    elif args.command == "trending":
+        asyncio.run(run_trending(args))
 
 
 async def run_search(args):
@@ -131,7 +164,7 @@ async def run_read(args):
     async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
         for i, url in enumerate(urls):
             try:
-                response = await client.get(url, headers={"User-Agent": "MCPScout/1.0.0"})
+                response = await client.get(url, headers={"User-Agent": "MCPSearch/1.0.0"})
                 response.raise_for_status()
                 content = extractor.extract(response.text, base_url=url)
 

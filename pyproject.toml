@@ -1,19 +1,22 @@
 [project]
-name = "mcpscout"
+name = "mcpsearch"
 version = "1.0.0"
-description = "MCPScout - AI-powered multi-source intelligence platform"
+description = "MCPSearch - AI-powered multi-source intelligence platform"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 
 dependencies = [
-    "scrapy>=2.11.0",
     "mcp>=1.0.0",
     "httpx>=0.27.0",
+    "hishel>=1.0.0",
     "pydantic>=2.0.0",
     "openai>=1.0.0",
     "beautifulsoup4>=4.12.0",
     "lxml>=5.0.0",
+    "playwright>=1.40.0",
+    "extruct>=0.17.0",
+    "selectolax>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -21,17 +24,21 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.4.0",
+    "coverage>=7.0.0",
+]
+browser = [
+    "playwright>=1.40.0",
 ]
 
 [project.scripts]
-mcpscout = "cli:main"
+mcpsearch = "cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["crawler", "search", "social", "mcp_server", "summarizer", "utils"]
+packages = ["agents", "crawler", "search", "social", "mcp_server", "summarizer", "utils"]
 
 [tool.ruff]
 target-version = "py311"

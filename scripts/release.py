@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release script for MCPScout.
+"""Release script for MCPSearch.
 
 Usage:
     python scripts/release.py patch   # 1.0.0 -> 1.0.1
@@ -203,7 +203,7 @@ def push_to_github(version: str) -> None:
     # Create release using gh
     result = subprocess.run(
         ["gh", "release", "create", f"v{version}",
-         "--title", f"MCPScout v{version}",
+         "--title", f"MCPSearch v{version}",
          "--generate-notes"],
         cwd=ROOT,
         capture_output=True,

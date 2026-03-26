@@ -1,8 +1,8 @@
-# AGENTS.md - MCPScout Development Guide
+# AGENTS.md - MCPSearch Development Guide
 
 ## Project Overview
 
-MCPScout is an AI-powered multi-source intelligence platform with MCP (Model Context Protocol) interface. It features hybrid crawling (httpx + Playwright + Camoufox), parallel search aggregation, social media scrapers, and advanced content extraction.
+MCPSearch is an AI-powered multi-source intelligence platform with MCP (Model Context Protocol) interface. It features hybrid crawling (httpx + Playwright + Camoufox), parallel search aggregation, social media scrapers, and advanced content extraction.
 
 ## Build & Development Commands
 
@@ -21,9 +21,9 @@ playwright install chromium
 python -m mcp_server
 
 # CLI commands
-mcpscout search -q "query"
-mcpscout crawl -u "https://example.com"
-mcpscout read -u "https://example.com"
+mcpsearch search -q "query"
+mcpsearch crawl -u "https://example.com"
+mcpsearch read -u "https://example.com"
 
 # Docker
 make docker-build
@@ -124,7 +124,7 @@ make format       # ruff format .
 from typing import Annotated
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("mcpscout")
+mcp = FastMCP("mcpsearch")
 
 @mcp.tool()
 async def tool_name(
@@ -137,10 +137,10 @@ async def tool_name(
 ## Project Structure
 
 ```
-MCPScout/
+MCPSearch/
 ├── mcp_server/           # FastMCP server (21 tools)
 │   ├── server.py         # Main MCP tools
-│   └── unified.py        # Unified scout interface
+│   └── unified.py        # Unified mcpsearch interface
 ├── crawler/
 │   ├── engine.py         # Async httpx crawler
 │   ├── hybrid.py         # httpx + Playwright
@@ -189,7 +189,7 @@ MCPScout/
 | Twitter/X | `search_twitter`, `get_user_tweets` |
 | YouTube | `search_youtube`, `get_youtube_channel`, `get_youtube_content` |
 | GitHub | `search_github`, `get_github_user`, `get_github_repo`, `get_github_readme` |
-| Unified | `scout`, `scout_multi` |
+| Unified | `mcpsearch`, `mcpsearch_multi` |
 
 ## Environment Variables
 

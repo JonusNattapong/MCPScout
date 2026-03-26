@@ -19,6 +19,8 @@ from urllib.parse import quote_plus, urljoin
 
 import httpx
 
+from utils.http_client import AsyncHttpClientConfig, build_async_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,19 +101,34 @@ class GitHubScraper:
 
     API_URL = "https://api.github.com"
 
-    def __init__(self, timeout: float = 30.0):
+    def __init__(
+        self,
+        timeout: float = 30.0,
+        *,
+        enable_cache: bool = True,
+        cache_ttl: int = 600,
+    ):
         self.timeout = timeout
+        self.enable_cache = enable_cache
+        self.cache_ttl = cache_ttl
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
         if self._client is None:
-            self._client = httpx.AsyncClient(
-                timeout=httpx.Timeout(self.timeout),
-                headers={
-                    "Accept": "application/vnd.github.v3+json",
-                    "User-Agent": "MCPScout/1.0.0",
-                },
+            self._client = build_async_client(
+                AsyncHttpClientConfig(
+                    timeout=self.timeout,
+                    headers={
+                        "Accept": "application/vnd.github.v3+json",
+                        "User-Agent": "MCPSearch/1.0.0",
+                    },
+                    enable_cache=self.enable_cache,
+                    cache_ttl=self.cache_ttl,
+                    max_connections=10,
+                    max_keepalive_connections=5,
+                    always_cache=True,
+                )
             )
         return self._client
 

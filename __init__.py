@@ -1,4 +1,4 @@
-"""MCPScout - AI-powered multi-source intelligence platform."""
+"""MCPSearch - AI-powered multi-source intelligence platform."""
 
 from mcpspider.version import __version__
 

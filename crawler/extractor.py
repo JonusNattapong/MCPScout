@@ -5,6 +5,7 @@ Extracts structured content including:
 - Code blocks (with language detection)
 - Images (with metadata)
 - JSON-LD structured data
+- Microdata, RDFa, OpenGraph, Dublin Core
 - Article content (main body)
 """
 
@@ -17,6 +18,12 @@ from typing import Any
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag, NavigableString
+
+try:
+    import extruct
+    HAS_EXTRUCT = True
+except ImportError:
+    HAS_EXTRUCT = False
 
 
 @dataclass
@@ -119,7 +126,7 @@ class ContentExtractor:
         content.title = self._extract_title(soup)
 
         # Extract structured data first (for metadata)
-        content.structured_data = self._extract_structured_data(soup)
+        content.structured_data = self._extract_structured_data(soup, html)
 
         # Find main content area
         main = self._find_main_content(soup)
@@ -316,27 +323,76 @@ class ContentExtractor:
 
         return links
 
-    def _extract_structured_data(self, soup: BeautifulSoup) -> list[StructuredData]:
-        """Extract JSON-LD structured data."""
+    def _extract_structured_data(self, soup: BeautifulSoup, html: str = "") -> list[StructuredData]:
+        """Extract structured data using extruct (JSON-LD, microdata, RDFa, OpenGraph, Dublin Core)."""
         structured = []
 
-        for script in soup.find_all("script", type="application/ld+json"):
+        # Use extruct if available for comprehensive extraction
+        if HAS_EXTRUCT and html:
             try:
-                data = json.loads(script.string or "")
-                if isinstance(data, dict):
-                    structured.append(StructuredData(
-                        data=data,
-                        type=data.get("@type", ""),
-                    ))
-                elif isinstance(data, list):
-                    for item in data:
-                        if isinstance(item, dict):
-                            structured.append(StructuredData(
-                                data=item,
-                                type=item.get("@type", ""),
-                            ))
-            except (json.JSONDecodeError, TypeError):
-                pass
+                extracted = extruct.extract(html, base_url="", syntaxes=["json-ld", "microdata", "rdfa", "opengraph", "dublincore"])
+                
+                # Process JSON-LD
+                for item in extracted.get("json-ld", []):
+                    if isinstance(item, dict):
+                        structured.append(StructuredData(
+                            data=item,
+                            type=item.get("@type", "json-ld"),
+                        ))
+                
+                # Process Microdata
+                for item in extracted.get("microdata", []):
+                    if isinstance(item, dict):
+                        structured.append(StructuredData(
+                            data=item,
+                            type=item.get("type", "microdata"),
+                        ))
+                
+                # Process RDFa
+                for item in extracted.get("rdfa", []):
+                    if isinstance(item, dict):
+                        structured.append(StructuredData(
+                            data=item,
+                            type=item.get("type", "rdfa"),
+                        ))
+                
+                # Process OpenGraph
+                for item in extracted.get("opengraph", []):
+                    if isinstance(item, dict):
+                        structured.append(StructuredData(
+                            data=item,
+                            type="opengraph",
+                        ))
+                
+                # Process Dublin Core
+                for item in extracted.get("dublincore", []):
+                    if isinstance(item, dict):
+                        structured.append(StructuredData(
+                            data=item,
+                            type="dublincore",
+                        ))
+            except Exception:
+                pass  # Fallback to manual extraction
+
+        # Fallback: manual JSON-LD extraction if extruct not available or failed
+        if not structured:
+            for script in soup.find_all("script", type="application/ld+json"):
+                try:
+                    data = json.loads(script.string or "")
+                    if isinstance(data, dict):
+                        structured.append(StructuredData(
+                            data=data,
+                            type=data.get("@type", ""),
+                        ))
+                    elif isinstance(data, list):
+                        for item in data:
+                            if isinstance(item, dict):
+                                structured.append(StructuredData(
+                                    data=item,
+                                    type=item.get("@type", ""),
+                                ))
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
         return structured
 

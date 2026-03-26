@@ -140,7 +140,7 @@ class SmartCrawler(CrawlerEngine):
         self,
         max_concurrent: int = 10,
         timeout: float = 30.0,
-        user_agent: str = "MCPScout/1.0.0",
+        user_agent: str = "MCPSearch/1.0.0",
         relevance_threshold: float = 0.4,
     ):
         super().__init__(max_concurrent, timeout, user_agent)

@@ -87,7 +87,7 @@ class RedditScraper:
 
     def __init__(
         self,
-        user_agent: str = "MCPScout/1.0.0 (Research Bot)",
+        user_agent: str = "MCPSearch/1.0.0 (Research Bot)",
         timeout: float = 30.0,
     ):
         self.user_agent = user_agent

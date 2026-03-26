@@ -1,195 +1,375 @@
-# MCPScout
+# MCPSearch
 
-AI-powered multi-source intelligence platform with MCP (Model Context Protocol) interface.
+**AI-powered multi-source research and crawling platform with MCP integration**
 
-**Hybrid crawling** + **Stealth browser** + **Social media scraping** + **Anti-bot bypass** - all free, no API keys required.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-green.svg)](https://www.python.org/downloads/)
+[![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-purple.svg)](https://modelcontextprotocol.io)
 
-## Features
+## Overview
 
-- **Hybrid Crawling** - httpx (fast) → Playwright (JS) → Camoufox (stealth) auto-fallback
-- **Stealth Browser** - Bypass Cloudflare, Akamai, DataDome (100% free, self-hosted)
-- **Parallel Search** - DuckDuckGo, Google, Bing simultaneously
-- **Social Media** - Reddit, Twitter/X, YouTube, GitHub (no API keys)
-- **Advanced Extraction** - Tables, code blocks, images, JSON-LD
-- **Smart Link Filtering** - Heuristic scoring to skip irrelevant links
-- **Recursive Crawling** - Deep crawl with depth control
-- **Rate Limiting** - Per-domain tracking with adaptive delays
-- **MCP Interface** - 22 tools for AI assistants
+MCPSearch is a self-hosted research stack for agents and developers. It combines:
 
-## MCP Tools
+- parallel web search across multiple engines
+- HTTP + browser + stealth crawling
+- social and developer-source collection
+- structured content extraction
+- MCP-native tool exposure
+- higher-level research workflows via `investigate`, `compare`, and `trending`
 
-### Unified Tool
+The project has grown beyond a simple crawler. The current shape is:
 
-```python
-# Single tool for everything
-scout(action="search", query="AI news")
-scout(action="crawl", url="https://example.com", mode="stealth")
-scout(action="reddit", query="python", subreddit="learnpython")
-scout(action="twitter", query="AI news")
-scout(action="youtube", query="python tutorial")
-scout(action="github", query="machine learning", sort="stars")
-scout(action="github", platform="repo", target="pytorch/pytorch")
-```
+- 29 MCP tools in [`mcp_server/server.py`](mcp_server/server.py)
+- a unified `mcpsearch` / `mcpsearch_multi` interface
+- shared action routing in [`mcp_server/handlers.py`](mcp_server/handlers.py)
+- a flagship orchestration layer in [`agents/research_agent.py`](agents/research_agent.py)
 
-### All Tools
+## Current Capabilities
 
-| Category | Tools |
-|----------|-------|
-| **Web Search** | `web_search`, `search_and_summarize`, `smart_search`, `deep_search` |
-| **Web Crawl** | `hybrid_crawl`, `crawl_url`, `extract_content`, `crawl_recursive` |
-| **Reddit** | `search_reddit`, `get_subreddit`, `get_reddit_post` |
-| **Twitter/X** | `search_twitter`, `get_user_tweets` |
-| **YouTube** | `search_youtube`, `get_youtube_channel`, `get_youtube_content` |
-| **GitHub** | `search_github`, `get_github_user`, `get_github_repo`, `get_github_readme` |
-| **Unified** | `scout`, `scout_multi` |
+- Web search: DuckDuckGo, Google, and Bing aggregation
+- Crawling modes:
+  `fast` via HTTP only, `hybrid` via HTTP + Playwright, `stealth` via anti-bot fallback
+- Extraction:
+  markdown/text extraction, tables, code blocks, images, metadata, JSON-LD/OpenGraph/Microdata via `extruct`
+- Fast parsing:
+  `selectolax` on hot search parsing paths with BeautifulSoup fallback
+- Social sources:
+  Reddit, Twitter/X, YouTube, GitHub
+- HTTP caching:
+  shared async client factory with optional Hishel-backed caching on request-heavy paths
+- Research workflows:
+  `research_agent`, `investigate`, `compare`, `trending`
+- Tool discovery:
+  `list_tools`, `describe_tools`, `get_crawl_stats`
 
-## Quick Start
+## Install
 
-### Install
+### Basic install
 
 ```bash
-# Clone repo
-git clone https://github.com/JonusNattapong/MCPScout.git
-cd MCPScout
-
-# Install
+git clone https://github.com/JonusNattapong/MCPSearch.git
+cd MCPSearch
 pip install -e .
 playwright install chromium
+```
 
-# Or with dev dependencies
+### Development install
+
+```bash
 make dev
 ```
 
-### Run MCP Server
+or:
 
 ```bash
-# Method 1: Module
-python -m mcp_server
-
-# Method 2: Makefile
-make server
+pip install -e ".[dev]"
+playwright install chromium
 ```
+
+### Optional stealth dependency
+
+`crawler/stealth.py` can use Camoufox when it is installed. If Camoufox is not available, MCPSearch falls back to Playwright-based stealth behavior.
+
+### Environment variables
+
+- `OPENAI_API_KEY`
+  Optional. Used by summarization flows when AI summaries are enabled.
+
+## Quick Start
 
 ### CLI
 
 ```bash
-mcpscout search -q "AI news"
-mcpscout crawl -u "https://example.com"
-mcpscout read -u "https://example.com"
+# Search
+mcpsearch search -q "AI agents"
+
+# Crawl a page
+mcpsearch crawl -u "https://example.com"
+
+# Read a page in terminal-friendly format
+mcpsearch read -u "https://example.com"
+
+# Research workflow
+mcpsearch research --query "browser fingerprinting" --depth deep --summarize
+
+# Compare topics
+mcpsearch compare --compare "React" "Vue" "Svelte" --depth medium
+
+# Trending view
+mcpsearch trending --max-results 10
+
+# Run MCP server
+mcpsearch server
+```
+
+### Python / MCP-facing examples
+
+```python
+# Unified tool
+mcpsearch(action="search", query="LLM agents", limit=5)
+mcpsearch(action="crawl", url="https://example.com", mode="hybrid")
+mcpsearch(action="reddit", query="python", subreddit="learnpython")
+mcpsearch(action="github", query="browser automation", sort="stars")
+
+# Multi-action orchestration
+mcpsearch_multi(actions='[
+  {"action":"search","query":"agent memory patterns"},
+  {"action":"reddit","query":"LocalLLaMA"},
+  {"action":"github","query":"llm agents","sort":"stars"}
+]')
+
+# Flagship research tools
+investigate(topic="Python async scraping", depth="deep", include_social=True)
+compare(topics="React,Vue,Svelte", depth="medium", max_sources=3)
+trending(platforms="reddit,github", limit=10)
 ```
 
 ## MCP Integration
 
-Add to your MCP client config (Claude Desktop, etc.):
+### Claude Desktop
 
 ```json
 {
   "mcpServers": {
-    "mcpscout": {
+    "mcpsearch": {
       "command": "python",
-      "args": ["-m", "mcp_server"]
+      "args": ["-m", "mcp_server"],
+      "cwd": "/path/to/MCPSearch",
+      "env": {
+        "OPENAI_API_KEY": ""
+      }
     }
   }
 }
 ```
 
+### Cursor
+
+```json
+{
+  "mcpServers": {
+    "mcpsearch": {
+      "command": "python",
+      "args": ["-m", "mcp_server"],
+      "cwd": "/path/to/MCPSearch"
+    }
+  }
+}
+```
+
+### Custom MCP client
+
+```json
+{
+  "command": "python",
+  "args": ["-m", "mcp_server"],
+  "transport": "stdio"
+}
+```
+
+## Tool Map
+
+### Unified tools
+
+- `mcpsearch`
+- `mcpsearch_multi`
+
+### Search and crawl tools
+
+- `web_search`
+- `search_and_summarize`
+- `smart_search`
+- `deep_search`
+- `crawl_url`
+- `hybrid_crawl`
+- `crawl_recursive`
+- `extract_content`
+- `get_crawl_stats`
+
+### Social tools
+
+- `search_reddit`
+- `get_subreddit`
+- `get_reddit_post`
+- `search_twitter`
+- `get_user_tweets`
+- `search_youtube`
+- `get_youtube_channel`
+- `get_youtube_content`
+- `search_github`
+- `get_github_user`
+- `get_github_repo`
+- `get_github_readme`
+
+### Research tools
+
+- `research_agent`
+- `investigate`
+- `compare`
+- `trending`
+
+### Discovery tools
+
+- `list_tools`
+- `describe_tools`
+
+## Recommended Entry Points
+
+If you are integrating MCPSearch into an agent:
+
+- start with `list_tools` and `describe_tools`
+- prefer `mcpsearch` for simple routing
+- use `mcpsearch_multi` when you want parallel source gathering
+- use `investigate` for richer topic-oriented research
+- use `compare` when the output should be side-by-side
+- use `trending` for source discovery and early signal collection
+
+## Research Workflows
+
+### `investigate`
+
+Best when you want one topic explored across search, crawl, and social sources.
+
+```python
+investigate(
+    topic="anti-bot browser strategies",
+    depth="deep",
+    include_social=True,
+    include_summary=True,
+    max_sources=5,
+)
+```
+
+### `compare`
+
+Best when you want repeated shallow or medium investigations and a compact comparison result.
+
+```python
+compare(
+    topics="Playwright,Selenium,Camoufox",
+    depth="medium",
+    max_sources=3,
+)
+```
+
+### `trending`
+
+Best when you want new leads before deeper crawling.
+
+```python
+trending(
+    platforms="reddit,github",
+    limit=10,
+)
+```
+
 ## Architecture
 
-```
-URL Input → httpx (fast, ~50ms)
-               │
-          Blocked? → Playwright (JS rendering)
-                        │
-                   Blocked? → Camoufox (stealth, auto!)
-```
+### Request flow
 
-### Rate Limiting
-
-Automatic per-domain rate limiting:
-- Adaptive delays between requests
-- Block detection and cooldown
-- Request tracking per domain
-
-```bash
-# Check crawl stats
-mcpscout stats  # or use get_crawl_stats tool
-```
-
-## Usage Examples
-
-### Web Search + Summarize
-
-```python
-# Perplexity-style search and summarize
-search_and_summarize(query="Latest AI developments", max_sources=5)
+```text
+Query / URL / Topic
+        |
+        v
+  mcpsearch / direct tool
+        |
+        v
+ mcp_server/handlers.py
+        |
+        +--> search/aggregator.py
+        +--> crawler/engine.py
+        +--> crawler/hybrid.py
+        +--> crawler/stealth.py
+        +--> social/*.py
+        +--> agents/research_agent.py
 ```
 
-### Smart Crawl with Link Filtering
+### Crawl strategy
 
-```python
-# Only crawl relevant links
-smart_search(query="Python async tutorial", max_depth=2, max_pages=15)
+```text
+fast    -> HTTP only
+hybrid  -> HTTP first, then browser rendering when needed
+stealth -> multi-browser / anti-bot fallback path
 ```
 
-### Social Media Research
+### Current project structure
 
-```python
-# Cross-platform research
-scout_multi(actions=[
-    {"action": "search", "query": "LLM agents"},
-    {"action": "reddit", "query": "LocalLLaMA"},
-    {"action": "github", "query": "langchain", "sort": "stars"},
-])
+```text
+MCPSearch/
+├── agents/                 # Higher-level research orchestration
+├── crawler/                # HTTP, hybrid, stealth, extraction logic
+├── mcp_server/             # MCP server, unified tools, shared handlers
+├── search/                 # Search aggregation
+├── social/                 # Reddit, Twitter/X, YouTube, GitHub scrapers
+├── summarizer/             # AI summarization helpers
+├── tests/                  # Workflow and unit tests
+├── utils/                  # Cache, dedup, rate limiting
+├── cli.py                  # CLI entry point
+├── Makefile                # Dev/test/release commands
+└── pyproject.toml          # Package metadata and dependencies
 ```
 
 ## Development
 
-```bash
-# Install dev dependencies
-make dev
+### Useful commands
 
-# Run tests
+```bash
+make install
+make dev
 make test
 make test-cov
-
-# Lint & format
 make lint
+make lint-fix
 make format
-
-# Docker
-make docker-build
-make docker-run
+make server
+python3 scripts/benchmark_search_and_crawl.py
 ```
 
-## Version Management
+### Focused test commands
 
 ```bash
-# Auto-release with changelog
-make patch   # 1.0.0 -> 1.0.1
-make minor   # 1.0.0 -> 1.1.0
-make major   # 1.0.0 -> 2.0.0
+make test-hybrid
+make test-rate-limiter
+pytest tests/test_extractor.py -v
+pytest tests/test_search_parsers.py -v
+pytest tests/test_mcp_integration.py -v
+pytest tests/test_mcp_tools.py -v
 ```
 
-## Project Structure
+### Release
 
-```
-MCPScout/
-├── mcp_server/           # FastMCP server (22 tools)
-├── crawler/              # Hybrid + stealth crawling
-├── search/               # Multi-engine search
-├── social/               # Reddit, Twitter, YouTube, GitHub
-├── utils/                # Rate limiter
-├── mcpspider/            # Version management
-├── scripts/              # Release automation
-├── cli.py                # CLI interface
-├── Makefile              # Common commands
-└── pyproject.toml        # Package config
+```bash
+make patch
+make minor
+make major
 ```
 
-## License
+Version is sourced from [`mcpspider/version.py`](mcpspider/version.py).
 
-MIT - See [LICENSE](LICENSE)
+## Project Status Notes
+
+- The README now reflects `mcpsearch` / `mcpsearch_multi`, not the older `scout` naming.
+- Playwright is part of declared dependencies.
+- Camoufox support exists in code, but is optional at install time.
+- The main research direction is now orchestration, attribution, and multi-source analysis, not just single-page crawling.
+
+## Practical Next Improvements
+
+See [`docs/USEFUL_LIBS.md`](docs/USEFUL_LIBS.md) for a curated list of libraries and implementation tricks that fit the current architecture.
+
+## Legal and Ethical Usage
+
+Use MCPSearch responsibly.
+
+- Respect target site policies and applicable law.
+- Use rate limiting and caching to reduce load.
+- Review platform terms before large-scale scraping.
+- Avoid collecting or redistributing restricted personal data.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contribution guidance lives in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

@@ -1,4 +1,4 @@
-"""Version management for MCPScout."""
+"""Version management for MCPSearch."""
 
 __version__ = "1.0.0"
 

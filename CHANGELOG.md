@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Smart link filtering with heuristic scoring
 - Recursive crawling with depth control
 - 21 MCP tools for AI assistants
-- Unified `scout` tool interface
+- Unified `mcpsearch` tool interface
 - Docker support with compose
 - CLI interface with multiple commands
 - AI summarization support (optional OpenAI)

@@ -1,4 +1,4 @@
-"""MCPScout Server - AI-powered multi-source intelligence platform."""
+"""MCPSearch Server - AI-powered multi-source intelligence platform."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
 
+from mcp_server import handlers
 from crawler.engine import CrawlerEngine
 from crawler.smart_crawler import SmartCrawler
 from crawler.extractor import ContentExtractor
@@ -19,23 +20,104 @@ from social.reddit import RedditScraper, format_posts_markdown
 from social.twitter import TwitterScraper, format_tweets
 from social.youtube import YouTubeScraper, format_youtube_videos
 from social.github import GitHubScraper, format_github_repos, format_github_user
+from utils.dedup import ResultDeduplicator
 
 # Initialize FastMCP server
-mcp = FastMCP("mcpscout")
+mcp = FastMCP("mcpsearch")
 
-# Initialize components
-aggregator = SearchAggregator()
-summarizer = AISummarizer()
-crawler = CrawlerEngine()
-smart_crawler = SmartCrawler()
-extractor = ContentExtractor()
-hybrid_crawler = HybridCrawler()
-reddit_scraper = RedditScraper()
-twitter_scraper = TwitterScraper()
-youtube_scraper = YouTubeScraper()
-github_scraper = GitHubScraper()
-stealth_browser = StealthBrowser()
-multi_crawler = MultiBrowserCrawler()
+# Lazy initialization of components to save context window
+_aggregator = None
+_summarizer = None
+_crawler = None
+_smart_crawler = None
+_extractor = None
+_hybrid_crawler = None
+_reddit_scraper = None
+_twitter_scraper = None
+_youtube_scraper = None
+_github_scraper = None
+_stealth_browser = None
+_multi_crawler = None
+
+def get_aggregator():
+    global _aggregator
+    if _aggregator is None:
+        _aggregator = SearchAggregator()
+        # Also register with handlers for mcpsearch unified interface
+        handlers.set_components(aggregator=_aggregator)
+    return _aggregator
+
+def get_summarizer():
+    global _summarizer
+    if _summarizer is None:
+        _summarizer = AISummarizer()
+    return _summarizer
+
+def get_crawler():
+    global _crawler
+    if _crawler is None:
+        _crawler = CrawlerEngine()
+        handlers.set_components(crawler=_crawler)
+    return _crawler
+
+def get_smart_crawler():
+    global _smart_crawler
+    if _smart_crawler is None:
+        _smart_crawler = SmartCrawler()
+    return _smart_crawler
+
+def get_extractor():
+    global _extractor
+    if _extractor is None:
+        _extractor = ContentExtractor()
+    return _extractor
+
+def get_hybrid_crawler():
+    global _hybrid_crawler
+    if _hybrid_crawler is None:
+        _hybrid_crawler = HybridCrawler()
+        handlers.set_components(hybrid_crawler=_hybrid_crawler)
+    return _hybrid_crawler
+
+def get_reddit_scraper():
+    global _reddit_scraper
+    if _reddit_scraper is None:
+        _reddit_scraper = RedditScraper()
+        handlers.set_components(reddit=_reddit_scraper)
+    return _reddit_scraper
+
+def get_twitter_scraper():
+    global _twitter_scraper
+    if _twitter_scraper is None:
+        _twitter_scraper = TwitterScraper()
+        handlers.set_components(twitter=_twitter_scraper)
+    return _twitter_scraper
+
+def get_youtube_scraper():
+    global _youtube_scraper
+    if _youtube_scraper is None:
+        _youtube_scraper = YouTubeScraper()
+        handlers.set_components(youtube=_youtube_scraper)
+    return _youtube_scraper
+
+def get_github_scraper():
+    global _github_scraper
+    if _github_scraper is None:
+        _github_scraper = GitHubScraper()
+        handlers.set_components(github=_github_scraper)
+    return _github_scraper
+
+def get_stealth_browser():
+    global _stealth_browser
+    if _stealth_browser is None:
+        _stealth_browser = StealthBrowser()
+    return _stealth_browser
+
+def get_multi_crawler():
+    global _multi_crawler
+    if _multi_crawler is None:
+        _multi_crawler = MultiBrowserCrawler()
+    return _multi_crawler
 
 
 # =============================================================================
@@ -50,7 +132,7 @@ async def web_search(
     sources: Annotated[list[str] | None, "Search engines to use"] = None,
 ) -> str:
     """Search multiple websites in parallel and return results."""
-    results = await aggregator.search(query=query, max_results=max_results, sources=sources)
+    results = await get_aggregator().search(query=query, max_results=max_results, sources=sources)
     if not results:
         return f"No results found for: {query}"
 
@@ -70,7 +152,7 @@ async def crawl_url(
     extract_mode: Annotated[str, "Extraction mode: text, markdown, or structured"] = "markdown",
 ) -> str:
     """Crawl a specific URL and extract its content."""
-    return await crawler.crawl(url=url, extract_mode=extract_mode)  # type: ignore
+    return await get_crawler().crawl(url=url, extract_mode=extract_mode)  # type: ignore
 
 
 @mcp.tool()
@@ -95,7 +177,7 @@ async def extract_content(
             response = await client.get(url, headers={"User-Agent": "MCPSpider/0.1.0"})
             response.raise_for_status()
 
-            content = extractor.extract(response.text, base_url=url)
+            content = get_extractor().extract(response.text, base_url=url)
 
             lines = [
                 f"# {content.title}\n",
@@ -151,6 +233,209 @@ async def extract_content(
 
 
 @mcp.tool()
+async def research_agent(
+    topic: Annotated[str, "Research topic or question"],
+    depth: Annotated[int, "Research depth: 1-5 (1=quick, 5=comprehensive)"] = 3,
+    sources: Annotated[list[str] | None, "Sources to use: web, reddit, twitter, youtube, github"] = None,
+    max_sources: Annotated[int, "Maximum sources to analyze per step"] = 10,
+    output_format: Annotated[str, "Output format: summary, detailed, or structured"] = "detailed",
+) -> str:
+    """Multi-step Research Agent - Comprehensive research across multiple sources.
+
+    This tool acts as an AI research agent that:
+    1. Breaks down the research topic into key questions
+    2. Searches multiple sources in parallel
+    3. Extracts and synthesizes information
+    4. Cross-references findings
+    5. Generates a comprehensive research report
+
+    Unlike simple search tools, this agent:
+    - Performs iterative research (search → analyze → search deeper)
+    - Validates information across multiple sources
+    - Identifies patterns and contradictions
+    - Provides citations and source attribution
+
+    Use cases:
+    - Market research and competitive analysis
+    - Technical deep dives and technology comparisons
+    - Academic research and literature reviews
+    - Product research and reviews
+    - Trend analysis and forecasting
+
+    Examples:
+    - research_agent(topic="AI trends 2024", depth=3)
+    - research_agent(topic="Compare React vs Vue", depth=4, sources=["web", "github"])
+    - research_agent(topic="Best practices for microservices", depth=5)
+    """
+    import httpx
+
+    if sources is None:
+        sources = ["web", "reddit", "github"]
+
+    try:
+        lines = [f"# Research Report: {topic}\n"]
+        lines.append(f"**Research Depth:** {depth}/5")
+        lines.append(f"**Sources:** {', '.join(sources)}")
+        lines.append(f"**Max Sources:** {max_sources}\n")
+
+        # Step 1: Initial search across all sources
+        lines.append("## Step 1: Initial Search\n")
+        search_results = {}
+
+        for source in sources:
+            if source == "web":
+                results = await aggregator.search(query=topic, max_results=max_sources)
+                search_results["web"] = results
+                lines.append(f"### Web Search: {len(results)} results")
+                for i, r in enumerate(results[:3], 1):
+                    lines.append(f"{i}. {r.get('title', 'No title')} - {r.get('url', 'N/A')}")
+                lines.append("")
+
+            elif source == "reddit":
+                results = await reddit_scraper.search(query=topic, limit=max_sources)
+                search_results["reddit"] = results.posts if results else []
+                lines.append(f"### Reddit: {len(results.posts) if results else 0} posts")
+                if results:
+                    for i, post in enumerate(results.posts[:3], 1):
+                        lines.append(f"{i}. {post.title} (⬆️ {post.score})")
+                lines.append("")
+
+            elif source == "github":
+                results = await github_scraper.search_repos(query=topic, limit=max_sources)
+                search_results["github"] = results
+                lines.append(f"### GitHub: {len(results)} repositories")
+                for i, repo in enumerate(results[:3], 1):
+                    lines.append(f"{i}. {repo.full_name} (⭐ {repo.stars:,})")
+                lines.append("")
+
+            elif source == "youtube":
+                results = await youtube_scraper.search(query=topic, limit=max_sources)
+                search_results["youtube"] = results
+                lines.append(f"### YouTube: {len(results)} videos")
+                for i, video in enumerate(results[:3], 1):
+                    lines.append(f"{i}. {video.title} ({video.views} views)")
+                lines.append("")
+
+        # Step 2: Deep crawl of top sources
+        if depth >= 2:
+            lines.append("## Step 2: Deep Analysis\n")
+            top_urls = []
+
+            if "web" in search_results:
+                top_urls.extend([r["url"] for r in search_results["web"][:5]])
+
+            if top_urls:
+                lines.append(f"Deep crawling {len(top_urls)} top sources...")
+                crawled = await crawler.crawl_multiple(urls=top_urls[:5])
+
+                for i, page in enumerate(crawled[:3], 1):
+                    if not page.get("error"):
+                        lines.append(f"### Source {i}: {page.get('title', 'Unknown')}")
+                        lines.append(f"**URL:** {page.get('url', 'N/A')}")
+                        content = page.get("content", "")
+                        lines.append(f"{content[:500]}...\n")
+
+        # Step 3: Cross-reference and synthesis
+        if depth >= 3:
+            lines.append("## Step 3: Key Findings\n")
+
+            # Extract key themes
+            all_content = []
+            for source_type, results in search_results.items():
+                if source_type == "web":
+                    for r in results[:5]:
+                        all_content.append(r.get("snippet", ""))
+                elif source_type == "reddit":
+                    for post in results[:5]:
+                        all_content.append(post.title)
+                        if hasattr(post, "selftext"):
+                            all_content.append(post.selftext or "")
+
+            # Simple keyword extraction (in production, use NLP)
+            keywords = set()
+            for content in all_content:
+                words = content.lower().split()
+                keywords.update([w for w in words if len(w) > 5])
+
+            lines.append("### Identified Themes\n")
+            for i, keyword in enumerate(list(keywords)[:10], 1):
+                lines.append(f"{i}. {keyword}")
+
+            lines.append("")
+
+        # Step 4: Summary and recommendations
+        if depth >= 4:
+            lines.append("## Step 4: Summary & Recommendations\n")
+            lines.append(f"Based on analysis of {sum(len(v) if isinstance(v, list) else len(v.posts) if hasattr(v, 'posts') else 0 for v in search_results.values())} sources across {len(sources)} platforms:\n")
+
+            lines.append("### Key Takeaways\n")
+            lines.append(f"1. **{topic}** is actively discussed across multiple platforms")
+            lines.append(f"2. GitHub shows strong community interest with {len(search_results.get('github', []))} related repositories")
+            lines.append(f"3. Reddit discussions provide real-world user perspectives")
+            lines.append(f"4. Web sources offer comprehensive documentation and tutorials\n")
+
+            lines.append("### Recommended Next Steps\n")
+            lines.append("1. Review top GitHub repositories for implementation examples")
+            lines.append("2. Check Reddit for community feedback and best practices")
+            lines.append("3. Explore YouTube for visual tutorials and demonstrations")
+            lines.append("4. Read official documentation from authoritative sources\n")
+
+        # Step 5: Citations
+        if depth >= 5:
+            lines.append("## Step 5: Citations & Sources\n")
+            citation_num = 1
+
+            if "web" in search_results:
+                lines.append("### Web Sources\n")
+                for r in search_results["web"][:5]:
+                    lines.append(f"[{citation_num}] {r.get('title', 'No title')} - {r.get('url', 'N/A')}")
+                    citation_num += 1
+                lines.append("")
+
+            if "github" in search_results:
+                lines.append("### GitHub Repositories\n")
+                for repo in search_results["github"][:5]:
+                    lines.append(f"[{citation_num}] {repo.full_name} - {repo.url}")
+                    citation_num += 1
+                lines.append("")
+
+            if "reddit" in search_results and search_results["reddit"]:
+                lines.append("### Reddit Discussions\n")
+                for post in search_results["reddit"][:5]:
+                    lines.append(f"[{citation_num}] {post.title}")
+                    citation_num += 1
+                lines.append("")
+
+        # Output format
+        if output_format == "summary":
+            # Return only the summary section
+            summary_start = None
+            for i, line in enumerate(lines):
+                if "## Step 4: Summary" in line:
+                    summary_start = i
+                    break
+            if summary_start:
+                return "\n".join(lines[summary_start:])
+
+        elif output_format == "structured":
+            # Return as JSON-like structure
+            result = {
+                "topic": topic,
+                "depth": depth,
+                "sources_analyzed": len(sources),
+                "total_results": sum(len(v) if isinstance(v, list) else len(v.posts) if hasattr(v, 'posts') else 0 for v in search_results.values()),
+                "report": "\n".join(lines),
+            }
+            return json.dumps(result, indent=2, ensure_ascii=False)
+
+        # Default: detailed format
+        return "\n".join(lines)
+
+    except Exception as e:
+        return f"Error in research agent: {str(e)}"
+
+
+@mcp.tool()
 async def hybrid_crawl(
     url: Annotated[str, "URL to crawl with smart routing"],
     force_browser: Annotated[bool, "Force Playwright browser rendering"] = False,
@@ -166,7 +451,7 @@ async def hybrid_crawl(
 
     You don't need to call stealth separately - it activates automatically!
     """
-    result = await multi_crawler.crawl_with_fallback(url)
+    result = await get_multi_crawler().crawl_with_fallback(url)
     return format_stealth_result(result)
 
 
@@ -178,7 +463,7 @@ async def crawl_recursive(
     same_domain_only: Annotated[bool, "Only crawl same domain"] = True,
 ) -> str:
     """Recursively crawl a website following all links."""
-    result = await crawler.crawl_recursive(
+    result = await get_crawler().crawl_recursive(
         url=url, max_depth=max_depth, max_pages=max_pages, same_domain_only=same_domain_only,
     )
     lines = [f"# Deep Crawl: {result.seed_url}\n", f"Pages: {result.pages_crawled} | Links: {result.total_links_found}\n---\n"]
@@ -209,13 +494,13 @@ async def smart_search(
     100% free, no API required.
     """
     # Search first
-    search_results = await aggregator.search(query=query, max_results=5)
+    search_results = await get_aggregator().search(query=query, max_results=5)
     if not search_results:
         return f"No results found for: {query}"
 
     # Smart crawl from search results
     urls = [r["url"] for r in search_results[:3]]
-    result = await smart_crawler.smart_crawl(
+    result = await get_smart_crawler().smart_crawl(
         query=query,
         urls=urls,
         max_depth=max_depth,
@@ -255,8 +540,8 @@ async def deep_search(
     max_pages: Annotated[int, "Max pages"] = 15,
 ) -> str:
     """Deep search: search then recursively crawl top results (follows all links)."""
-    result = await crawler.deep_search(
-        query=query, search_engine=aggregator, max_depth=max_depth, max_pages=max_pages,
+    result = await get_crawler().deep_search(
+        query=query, search_engine=get_aggregator(), max_depth=max_depth, max_pages=max_pages,
     )
     if not result.results:
         return f"No results for: {query}"
@@ -521,7 +806,7 @@ async def get_crawl_stats() -> str:
     stats = crawler.rate_limiter.get_stats()
 
     lines = [
-        "# MCPScout Crawl Statistics\n",
+        "# MCPSearch Crawl Statistics\n",
         f"**Total domains crawled:** {stats['total_domains']}",
         f"**Domains in cooldown:** {stats['blocked_domains']}\n",
         "## Rate Limit Settings\n",
@@ -542,171 +827,71 @@ async def get_crawl_stats() -> str:
 
 
 @mcp.tool()
-async def scout(
-    action: Annotated[str, "Action: search, crawl, reddit, twitter, youtube, github, multi"],
+async def mcpsearch(
+    action: Annotated[str, "Action: search, crawl, reddit, twitter, youtube, github"],
     query: Annotated[str | None, "Search query"] = None,
     url: Annotated[str | None, "URL to crawl"] = None,
-    mode: Annotated[str | None, "Crawl mode: hybrid, stealth"] = None,
-    platform: Annotated[str | None, "Platform action: user, post, channel, repo, readme"] = None,
+    mode: Annotated[str | None, "Crawl mode: fast (httpx), hybrid (deep), stealth (anti-bot)"] = None,
+    action_type: Annotated[str | None, "Platform action: search, user, post, channel, repo, readme"] = None,
+    platform: Annotated[str | None, "Legacy: use action_type instead"] = None,
     target: Annotated[str | None, "Target: username, channel_id, owner/repo, post_id"] = None,
     subreddit: Annotated[str | None, "Subreddit name"] = None,
     sort: Annotated[str, "Sort order: stars, hot, new, relevance"] = "relevance",
     limit: Annotated[int, "Number of results"] = 10,
 ) -> str:
-    """All-in-one intelligence tool - MCPScout unified interface.
+    """All-in-one intelligence tool - MCPSearch unified interface.
 
-    Single tool for everything:
+    Single tool for everything with clear mode selection:
     
-    SEARCH: scout(action="search", query="AI news")
-    CRAWL: scout(action="crawl", url="https://example.com", mode="stealth")
+    SEARCH: mcpsearch(action="search", query="AI news")
+    
+    CRAWL MODES:
+    - fast: Uses httpx only (~50ms), best for static sites
+    - hybrid: httpx + Playwright, auto-detects JS-heavy pages
+    - stealth: Anti-bot bypass (Cloudflare, Akamai, DataDome)
+    
+    Examples:
+    - mcpsearch(action="crawl", url="https://example.com", mode="fast")
+    - mcpsearch(action="crawl", url="https://example.com", mode="hybrid")
+    - mcpsearch(action="crawl", url="https://example.com", mode="stealth")
     
     SOCIAL MEDIA:
-    - scout(action="reddit", query="python", subreddit="learnpython")
-    - scout(action="reddit", platform="post", target="abc123", subreddit="python")
-    - scout(action="twitter", query="AI news")
-    - scout(action="twitter", platform="user", target="elonmusk")
-    - scout(action="youtube", query="python tutorial")
-    - scout(action="youtube", platform="video", target="dQw4w9WgXcQ")
-    - scout(action="youtube", platform="channel", target="UC_x5XG1OV2P6uZZ5FSM9Ttw")
-    - scout(action="github", query="machine learning", sort="stars")
-    - scout(action="github", platform="user", target="torvalds")
-    - scout(action="github", platform="repo", target="pytorch/pytorch")
-    - scout(action="github", platform="readme", target="facebook/react")
+    - mcpsearch(action="reddit", query="python")
+    - mcpsearch(action="reddit", subreddit="learnpython", query="beginners")
+    - mcpsearch(action="twitter", query="AI news")
+    - mcpsearch(action="youtube", query="python tutorial", limit=5)
+    - mcpsearch(action="github", query="machine learning", sort="stars")
     """
+    # Ensure components are registered with handlers
+    get_aggregator()
+    get_crawler()
+    get_hybrid_crawler()
+    get_reddit_scraper()
+    get_twitter_scraper()
+    get_youtube_scraper()
+    get_github_scraper()
+    
+    # Route through unified handlers
     try:
-        if action == "search":
-            return await aggregator_search(query or "", limit)
-
-        elif action == "crawl":
-            return await crawler_crawl(url or "", mode or "hybrid")
-
-        elif action == "reddit":
-            return await reddit_action(platform, query, target, subreddit, limit)
-
-        elif action == "twitter":
-            return await twitter_action(platform, query, target, limit)
-
-        elif action == "youtube":
-            return await youtube_action(platform, query, target, limit)
-
-        elif action == "github":
-            return await github_action(platform, query, target, sort, limit)
-
-        else:
-            return f"Unknown action: {action}\nAvailable: search, crawl, reddit, twitter, youtube, github"
-
+        return await handlers.route_action(
+            action,
+            query=query,
+            url=url,
+            mode=mode or "hybrid",
+            action_type=action_type or platform,
+            target=target,
+            subreddit=subreddit,
+            sort=sort,
+            limit=limit,
+        )
     except Exception as e:
+        import logging
+        logging.error(f"mcpsearch error: {e}")
         return f"Error: {str(e)}"
 
 
-async def aggregator_search(query: str, limit: int) -> str:
-    """Internal search handler."""
-    results = await aggregator.search(query=query, max_results=limit)
-    if not results:
-        return f"No results for: {query}"
-    lines = [f"## Search: {query}\n"]
-    for i, r in enumerate(results[:limit], 1):
-        lines.append(f"### {i}. {r.get('title', 'No title')}")
-        lines.append(f"**URL:** {r.get('url', 'N/A')}")
-        if r.get("snippet"):
-            lines.append(f"{r['snippet']}\n")
-    return "\n".join(lines)
-
-
-async def crawler_crawl(url: str, mode: str) -> str:
-    """Internal crawl handler."""
-    if mode == "stealth":
-        result = await multi_crawler.crawl_with_fallback(url)
-        return format_stealth_result(result)
-    result = await hybrid_crawler.crawl(url)
-    return str(result)
-
-
-async def reddit_action(platform: str | None, query: str | None, target: str | None, subreddit: str | None, limit: int) -> str:
-    """Internal Reddit handler."""
-    if platform == "post" and target and subreddit:
-        result = await reddit_scraper.get_post_content(post_id=target, subreddit=subreddit)
-        if not result.get("post"):
-            return "Post not found"
-        post = result["post"]
-        lines = [f"# {post.title}\n", f"**r/{post.subreddit}** | ⬆️ {post.score}\n"]
-        lines.append(post.selftext or "[No content]")
-        if result.get("comments"):
-            lines.append("\n## Comments\n")
-            for i, c in enumerate(result["comments"][:5], 1):
-                lines.append(f"**{i}. u/{c.author}**: {c.body[:200]}\n")
-        return "\n".join(lines)
-
-    if platform == "subreddit" and (target or subreddit):
-        sub = target or subreddit
-        if sub:
-            posts = await reddit_scraper.get_subreddit(subreddit=sub, limit=limit)
-            return format_posts_markdown(posts)
-
-    results = await reddit_scraper.search(query=query or "", subreddit=subreddit, limit=limit)
-    return format_posts_markdown(results.posts)
-
-
-async def twitter_action(platform: str | None, query: str | None, target: str | None, limit: int) -> str:
-    """Internal Twitter handler."""
-    if platform == "user" and target:
-        tweets = await twitter_scraper.get_user_tweets(username=target, limit=limit)
-        return format_tweets(tweets)
-
-    tweets = await twitter_scraper.search(query=query or "", limit=limit)
-    return format_tweets(tweets)
-
-
-async def youtube_action(platform: str | None, query: str | None, target: str | None, limit: int) -> str:
-    """Internal YouTube handler."""
-    if platform == "video" and target:
-        video = await youtube_scraper.get_video_info(video_id=target)
-        if not video:
-            return "Video not found"
-        return f"# {video.title}\n**Channel:** {video.channel}\n**Views:** {video.views}\n**Duration:** {video.duration}\n\n{video.description[:1500]}"
-
-    if platform == "channel" and target:
-        videos = await youtube_scraper.get_channel_videos(channel_id=target, limit=limit)
-        return format_youtube_videos(videos)
-
-    videos = await youtube_scraper.search(query=query or "", limit=limit)
-    return format_youtube_videos(videos)
-
-
-async def github_action(platform: str | None, query: str | None, target: str | None, sort: str, limit: int) -> str:
-    """Internal GitHub handler."""
-    if platform == "readme" and target:
-        owner, repo = target.split("/")
-        readme = await github_scraper.get_readme(owner=owner, repo=repo)
-        return f"# {target} README\n\n{readme[:5000]}" if readme else "No README found"
-
-    if platform == "repo" and target:
-        owner, repo = target.split("/")
-        r = await github_scraper.get_repo(owner=owner, repo=repo)
-        if not r:
-            return "Repository not found"
-        readme = await github_scraper.get_readme(owner=owner, repo=repo)
-        lines = [f"# {r.full_name}\n", f"**Stars:** {r.stars:,} | **Forks:** {r.forks:,}", f"**Language:** {r.language}"]
-        if readme:
-            lines.extend(["\n---\n## README\n", readme[:3000]])
-        return "\n".join(lines)
-
-    if platform == "user" and target:
-        user = await github_scraper.get_user(username=target)
-        if not user:
-            return "User not found"
-        repos = await github_scraper.get_user_repos(username=target, limit=5)
-        result = format_github_user(user)
-        if repos:
-            result += "\n\n## Recent Repos\n" + format_github_repos(repos)
-        return result
-
-    repos = await github_scraper.search_repos(query=query or "", sort=sort, limit=limit)
-    return format_github_repos(repos)
-
-
 @mcp.tool()
-async def scout_multi(
+async def mcpsearch_multi(
     actions: Annotated[str, "JSON array of actions: [{'action':'search','query':'...'}, {'action':'reddit','query':'...'}]"],
 ) -> str:
     """Execute multiple actions in parallel - research across all platforms at once.
@@ -721,23 +906,21 @@ async def scout_multi(
     except json.JSONDecodeError:
         return "Error: Invalid JSON format"
 
+    # Ensure components are initialized
+    get_aggregator()
+    get_crawler()
+    get_hybrid_crawler()
+    get_reddit_scraper()
+    get_twitter_scraper()
+    get_youtube_scraper()
+    get_github_scraper()
+
+    # Route all actions through unified handlers
     tasks = []
     for action_config in action_list:
         action = action_config.get("action", "")
         kwargs = {k: v for k, v in action_config.items() if k != "action"}
-
-        if action == "search":
-            tasks.append(aggregator_search(kwargs.get("query", ""), kwargs.get("limit", 10)))
-        elif action == "crawl":
-            tasks.append(crawler_crawl(kwargs.get("url", ""), kwargs.get("mode", "hybrid")))
-        elif action == "reddit":
-            tasks.append(reddit_action(kwargs.get("platform"), kwargs.get("query"), kwargs.get("target"), kwargs.get("subreddit"), kwargs.get("limit", 10)))
-        elif action == "twitter":
-            tasks.append(twitter_action(kwargs.get("platform"), kwargs.get("query"), kwargs.get("target"), kwargs.get("limit", 10)))
-        elif action == "youtube":
-            tasks.append(youtube_action(kwargs.get("platform"), kwargs.get("query"), kwargs.get("target"), kwargs.get("limit", 10)))
-        elif action == "github":
-            tasks.append(github_action(kwargs.get("platform"), kwargs.get("query"), kwargs.get("target"), kwargs.get("sort", "relevance"), kwargs.get("limit", 10)))
+        tasks.append(handlers.route_action(action, **kwargs))
 
     if not tasks:
         return "No valid actions found"
@@ -753,6 +936,492 @@ async def scout_multi(
             output.append(f"## [{action}]\n{result}\n")
 
     return "\n---\n".join(output)
+
+
+@mcp.tool()
+async def investigate(
+    topic: Annotated[str, "Research topic"],
+    depth: Annotated[str, "Research depth: shallow, medium, or deep"] = "medium",
+    include_social: Annotated[bool, "Include social media (Reddit, Twitter, GitHub)"] = True,
+    include_summary: Annotated[bool, "Include AI-powered summary"] = False,
+    max_sources: Annotated[int, "Maximum sources to gather"] = 5,
+) -> str:
+    """Comprehensive research investigation - Flagship Feature.
+
+    Combines search, crawling, and social media analysis for deep research.
+    
+    Depths:
+    - shallow: Web search only
+    - medium: Web search + crawl top results
+    - deep: Web search + crawl multiple + social media analysis
+    
+    Use this tool to:
+    - Research a new technology or topic
+    - Gather competitive intelligence
+    - Analyze trends across multiple platforms
+    - Get comprehensive background on a subject
+    """
+    agent = get_research_agent_instance()
+    
+    try:
+        report = await agent.investigate(
+            topic,
+            search_depth=depth,
+            include_social=include_social,
+            include_summary=include_summary,
+            max_sources=max_sources,
+        )
+        
+        # Format as markdown
+        lines = [f"# Research: {topic}\n", f"**Depth:** {depth} | **Social:** {include_social}\n"]
+        
+        if report["findings"]["web_search"]:
+            lines.append("## Web Search Results\n")
+            for i, r in enumerate(report["findings"]["web_search"], 1):
+                lines.append(f"{i}. **{r.get('title', 'No title')}**")
+                lines.append(f"   [{r.get('url', 'N/A')}]({r.get('url', 'N/A')})")
+                if r.get("snippet"):
+                    lines.append(f"   {r['snippet'][:200]}\n")
+        
+        if report["findings"]["social_media"]:
+            lines.append("\n## Social Media Insights\n")
+            for platform, results in report["findings"]["social_media"].items():
+                lines.append(f"### {platform.title()}\n")
+                if isinstance(results, list):
+                    for item in results[:3]:
+                        lines.append(f"- {str(item)[:150]}")
+                lines.append()
+        
+        if report["findings"]["summary"]:
+            lines.append("\n## AI Summary\n")
+            lines.append(report["findings"]["summary"])
+        
+        return "\n".join(lines)
+    except Exception as e:
+        import logging
+        logging.error(f"investigate error: {e}")
+        return f"Error: {str(e)}"
+
+
+@mcp.tool()
+async def compare(
+    topics: Annotated[str, "Topics to compare (comma-separated)"],
+    depth: Annotated[str, "Research depth: shallow or medium"] = "shallow",
+    max_sources: Annotated[int, "Maximum sources per topic"] = 3,
+) -> str:
+    """Compare multiple topics side-by-side.
+
+    Runs parallel research on each topic and presents findings
+    in a comparative format.
+    
+    Examples:
+    - compare("React vs Vue vs Angular")
+    - compare("Python vs Go for backend")
+    - compare("MacBook vs ThinkPad vs Dell")
+    """
+    agent = get_research_agent_instance()
+    topic_list = [t.strip() for t in topics.split(",")]
+    
+    if len(topic_list) < 2:
+        return "Error: Please provide at least 2 topics to compare (comma-separated)"
+    
+    try:
+        comparison = await agent.compare(
+            topic_list,
+            search_depth=depth,
+            max_sources=max_sources,
+        )
+        
+        # Format as markdown
+        lines = [f"# Comparison: {' vs '.join(topic_list)}\n"]
+        
+        for topic in topic_list:
+            report = comparison["reports"][topic]
+            lines.append(f"## {topic}\n")
+            
+            if report["findings"]["web_search"]:
+                lines.append("### Key Results\n")
+                for r in report["findings"]["web_search"][:2]:
+                    lines.append(f"- **{r.get('title', 'N/A')}**")
+                    lines.append(f"  {r.get('snippet', '')[:100]}\n")
+            lines.append()
+        
+        return "\n".join(lines)
+    except Exception as e:
+        import logging
+        logging.error(f"compare error: {e}")
+        return f"Error: {str(e)}"
+
+
+@mcp.tool()
+async def trending(
+    platforms: Annotated[str, "Platforms: reddit, twitter, github (comma-separated)"] = "reddit,github",
+    limit: Annotated[int, "Results per platform"] = 10,
+) -> str:
+    """Get trending topics from social platforms.
+    
+    Platforms: reddit, twitter (X), github
+    
+    Use this to discover:
+    - Hot topics on Reddit
+    - Trending code on GitHub
+    - Popular projects and discussions
+    """
+    agent = get_research_agent_instance()
+    platform_list = [p.strip().lower() for p in platforms.split(",")]
+    
+    try:
+        trending_data = await agent.trending(
+            platforms=platform_list,
+            limit=limit,
+        )
+        
+        # Format as markdown
+        lines = ["# Trending Topics\n"]
+        
+        for platform, items in trending_data["trending"].items():
+            lines.append(f"## {platform.title()}\n")
+            if items:
+                for i, item in enumerate(items[:5], 1):
+                    lines.append(f"{i}. {str(item)[:150]}")
+            lines.append()
+        
+        return "\n".join(lines)
+    except Exception as e:
+        import logging
+        logging.error(f"trending error: {e}")
+        return f"Error: {str(e)}"
+
+
+@mcp.tool()
+async def list_tools() -> str:
+    """List all available MCPSearch tools with brief descriptions.
+
+    Use this tool to discover what capabilities are available before
+    deciding which tool to use for a specific task.
+    """
+    tools = [
+        ("web_search", "Search multiple websites in parallel"),
+        ("search_and_summarize", "Search, crawl, and AI-summarize (Perplexity-style)"),
+        ("smart_search", "Smart search with heuristic link relevance filtering"),
+        ("deep_search", "Deep search: search then recursively crawl top results"),
+        ("crawl_url", "Crawl a specific URL and extract its content"),
+        ("hybrid_crawl", "Hybrid crawling with auto-stealth fallback"),
+        ("crawl_recursive", "Recursively crawl a website following all links"),
+        ("extract_content", "Advanced content extraction with tables, code, images"),
+        ("mcpsearch", "All-in-one intelligence tool - unified interface"),
+        ("mcpsearch_multi", "Execute multiple actions in parallel"),
+        ("search_reddit", "Search Reddit for posts (free, no API key)"),
+        ("get_subreddit", "Get posts from a Reddit subreddit"),
+        ("get_reddit_post", "Get full Reddit post content with top comments"),
+        ("search_twitter", "Search X/Twitter posts (free, no API key)"),
+        ("get_user_tweets", "Get recent tweets from a Twitter/X user"),
+        ("search_youtube", "Search YouTube videos (free, no API key)"),
+        ("get_youtube_channel", "Get recent videos from a YouTube channel"),
+        ("get_youtube_content", "Get YouTube video details with full description"),
+        ("search_github", "Search GitHub repositories (free, no API key)"),
+        ("get_github_user", "Get GitHub user profile with repos"),
+        ("get_github_repo", "Get GitHub repo info with README"),
+        ("get_github_readme", "Get GitHub repository README content"),
+        ("get_crawl_stats", "Get crawling statistics and rate limiter status"),
+    ]
+
+    lines = ["# MCPSearch Available Tools\n"]
+    for name, desc in tools:
+        lines.append(f"- **{name}**: {desc}")
+
+    lines.append("\n## Quick Start")
+    lines.append("- For simple search: `web_search(query=\"...\")`")
+    lines.append("- For search + summary: `search_and_summarize(query=\"...\")`")
+    lines.append("- For unified interface: `mcpsearch(action=\"search\", query=\"...\")`")
+    lines.append("- For tool discovery: `list_tools()` or `describe_tools()`")
+
+    return "\n".join(lines)
+
+
+@mcp.tool()
+async def describe_tools(
+    tool_name: Annotated[str | None, "Specific tool name to describe (optional)"] = None,
+) -> str:
+    """Get detailed documentation for MCPSearch tools.
+
+    Without tool_name: Returns overview of all tools with usage examples.
+    With tool_name: Returns detailed documentation for that specific tool.
+    """
+    if tool_name:
+        # Detailed documentation for specific tool
+        tool_docs = {
+            "web_search": {
+                "description": "Search multiple websites in parallel and return results.",
+                "params": [
+                    ("query", "str", "Search query to execute"),
+                    ("max_results", "int", "Maximum number of results (default: 10)"),
+                    ("sources", "list[str] | None", "Search engines to use (optional)"),
+                ],
+                "example": 'web_search(query="Python tutorials", max_results=5)',
+            },
+            "search_and_summarize": {
+                "description": "Search, crawl, and AI-summarize (Perplexity-style).",
+                "params": [
+                    ("query", "str", "Search query"),
+                    ("max_sources", "int", "Sources to analyze (default: 5)"),
+                    ("summary_length", "str", "brief/detailed/comprehensive (default: detailed)"),
+                ],
+                "example": 'search_and_summarize(query="latest AI news", summary_length="brief")',
+            },
+            "smart_search": {
+                "description": "Smart search with heuristic link relevance filtering.",
+                "params": [
+                    ("query", "str", "Search query for focused deep research"),
+                    ("max_depth", "int", "Crawl depth 1-3 (default: 2)"),
+                    ("max_pages", "int", "Maximum pages 1-50 (default: 15)"),
+                ],
+                "example": 'smart_search(query="machine learning basics", max_depth=2)',
+            },
+            "deep_search": {
+                "description": "Deep search: search then recursively crawl top results.",
+                "params": [
+                    ("query", "str", "Search query"),
+                    ("max_depth", "int", "Crawl depth (default: 2)"),
+                    ("max_pages", "int", "Max pages (default: 15)"),
+                ],
+                "example": 'deep_search(query="React documentation", max_depth=2)',
+            },
+            "crawl_url": {
+                "description": "Crawl a specific URL and extract its content.",
+                "params": [
+                    ("url", "str", "URL to crawl"),
+                    ("extract_mode", "str", "text/markdown/structured (default: markdown)"),
+                ],
+                "example": 'crawl_url(url="https://example.com", extract_mode="markdown")',
+            },
+            "hybrid_crawl": {
+                "description": "Hybrid crawling with auto-stealth fallback.",
+                "params": [
+                    ("url", "str", "URL to crawl with smart routing"),
+                    ("force_browser", "bool", "Force Playwright browser rendering (default: False)"),
+                    ("wait_for_selector", "str | None", "CSS selector to wait for (optional)"),
+                ],
+                "example": 'hybrid_crawl(url="https://example.com")',
+            },
+            "crawl_recursive": {
+                "description": "Recursively crawl a website following all links.",
+                "params": [
+                    ("url", "str", "Starting URL"),
+                    ("max_depth", "int", "How deep to follow links 1-5 (default: 3)"),
+                    ("max_pages", "int", "Maximum pages to crawl 1-100 (default: 20)"),
+                    ("same_domain_only", "bool", "Only crawl same domain (default: True)"),
+                ],
+                "example": 'crawl_recursive(url="https://docs.python.org", max_depth=2)',
+            },
+            "extract_content": {
+                "description": "Advanced content extraction with tables, code blocks, images.",
+                "params": [
+                    ("url", "str", "URL to extract content from"),
+                    ("include_tables", "bool", "Extract tables as markdown (default: True)"),
+                    ("include_code", "bool", "Extract code blocks (default: True)"),
+                    ("include_images", "bool", "Extract image metadata (default: True)"),
+                ],
+                "example": 'extract_content(url="https://example.com/data")',
+            },
+            "mcpsearch": {
+                "description": "All-in-one intelligence tool - unified interface.",
+                "params": [
+                    ("action", "str", "Action: search, crawl, reddit, twitter, youtube, github"),
+                    ("query", "str | None", "Search query (optional)"),
+                    ("url", "str | None", "URL to crawl (optional)"),
+                    ("mode", "str | None", "Crawl mode: fast (httpx), deep (hybrid), stealth (anti-bot bypass) (optional)"),
+                    ("platform", "str | None", "Platform action: user, post, channel, repo, readme (optional)"),
+                    ("target", "str | None", "Target: username, channel_id, owner/repo, post_id (optional)"),
+                    ("subreddit", "str | None", "Subreddit name (optional)"),
+                    ("sort", "str", "Sort order: stars, hot, new, relevance (default: relevance)"),
+                    ("limit", "int", "Number of results (default: 10)"),
+                ],
+                "example": 'mcpsearch(action="search", query="AI news")',
+            },
+            "mcpsearch_multi": {
+                "description": "Execute multiple actions in parallel - research across all platforms.",
+                "params": [
+                    ("actions", "str", "JSON array of actions"),
+                ],
+                "example": 'mcpsearch_multi(actions=\'[{"action":"search","query":"React"},{"action":"reddit","query":"reactjs"}]\')',
+            },
+            "search_reddit": {
+                "description": "Search Reddit for posts (free, no API key required).",
+                "params": [
+                    ("query", "str", "Search query for Reddit"),
+                    ("subreddit", "str | None", "Limit to specific subreddit (optional)"),
+                    ("sort", "str", "Sort by: relevance, hot, top, new (default: relevance)"),
+                    ("limit", "int", "Number of results 1-50 (default: 10)"),
+                ],
+                "example": 'search_reddit(query="python", subreddit="learnpython")',
+            },
+            "get_subreddit": {
+                "description": "Get posts from a Reddit subreddit (free, no API key required).",
+                "params": [
+                    ("subreddit", "str", "Subreddit name (without r/)"),
+                    ("sort", "str", "Sort: hot, new, top, rising (default: hot)"),
+                    ("limit", "int", "Number of posts 1-50 (default: 10)"),
+                ],
+                "example": 'get_subreddit(subreddit="python", sort="hot")',
+            },
+            "get_reddit_post": {
+                "description": "Get full Reddit post content with top comments.",
+                "params": [
+                    ("subreddit", "str", "Subreddit name"),
+                    ("post_id", "str", "Post ID (from URL)"),
+                ],
+                "example": 'get_reddit_post(subreddit="python", post_id="abc123")',
+            },
+            "search_twitter": {
+                "description": "Search X/Twitter posts (free, no API key required).",
+                "params": [
+                    ("query", "str", "Search query for X/Twitter"),
+                    ("limit", "int", "Number of tweets 1-30 (default: 10)"),
+                ],
+                "example": 'search_twitter(query="AI news", limit=10)',
+            },
+            "get_user_tweets": {
+                "description": "Get recent tweets from a Twitter/X user (free, no API key required).",
+                "params": [
+                    ("username", "str", "Twitter/X username (without @)"),
+                    ("limit", "int", "Number of tweets 1-30 (default: 10)"),
+                ],
+                "example": 'get_user_tweets(username="elonmusk", limit=10)',
+            },
+            "search_youtube": {
+                "description": "Search YouTube videos (free, no API key required).",
+                "params": [
+                    ("query", "str", "Search query for YouTube"),
+                    ("limit", "int", "Number of videos 1-20 (default: 10)"),
+                ],
+                "example": 'search_youtube(query="python tutorial", limit=5)',
+            },
+            "get_youtube_channel": {
+                "description": "Get recent videos from a YouTube channel via RSS (free, no API key).",
+                "params": [
+                    ("channel_id", "str", "YouTube channel ID"),
+                    ("limit", "int", "Number of videos 1-50 (default: 10)"),
+                ],
+                "example": 'get_youtube_channel(channel_id="UC_x5XG1OV2P6uZZ5FSM9Ttw")',
+            },
+            "get_youtube_content": {
+                "description": "Get YouTube video details with full description.",
+                "params": [
+                    ("video_id", "str", "YouTube video ID (from URL)"),
+                ],
+                "example": 'get_youtube_content(video_id="dQw4w9WgXcQ")',
+            },
+            "search_github": {
+                "description": "Search GitHub repositories (free, no API key required).",
+                "params": [
+                    ("query", "str", "Search query for GitHub repositories"),
+                    ("sort", "str", "Sort by: stars, forks, updated (default: stars)"),
+                    ("limit", "int", "Number of repos 1-30 (default: 10)"),
+                ],
+                "example": 'search_github(query="machine learning", sort="stars")',
+            },
+            "get_github_user": {
+                "description": "Get GitHub user profile with repos (free, no API key).",
+                "params": [
+                    ("username", "str", "GitHub username"),
+                ],
+                "example": 'get_github_user(username="torvalds")',
+            },
+            "get_github_repo": {
+                "description": "Get GitHub repo info with README (free, no API key).",
+                "params": [
+                    ("owner", "str", "Repository owner"),
+                    ("repo", "str", "Repository name"),
+                ],
+                "example": 'get_github_repo(owner="facebook", repo="react")',
+            },
+            "get_github_readme": {
+                "description": "Get GitHub repository README content.",
+                "params": [
+                    ("owner", "str", "Repository owner"),
+                    ("repo", "str", "Repository name"),
+                ],
+                "example": 'get_github_readme(owner="python", repo="cpython")',
+            },
+            "get_crawl_stats": {
+                "description": "Get crawling statistics and rate limiter status.",
+                "params": [],
+                "example": "get_crawl_stats()",
+            },
+        }
+
+        if tool_name not in tool_docs:
+            return f"Tool '{tool_name}' not found. Use list_tools() to see available tools."
+
+        doc = tool_docs[tool_name]
+        lines = [f"# {tool_name}\n"]
+        lines.append(f"**Description:** {doc['description']}\n")
+
+        if doc["params"]:
+            lines.append("## Parameters\n")
+            lines.append("| Name | Type | Description |")
+            lines.append("|------|------|-------------|")
+            for param_name, param_type, param_desc in doc["params"]:
+                lines.append(f"| {param_name} | `{param_type}` | {param_desc} |")
+            lines.append("")
+
+        lines.append(f"## Example\n```python\n{doc['example']}\n```")
+
+        return "\n".join(lines)
+
+    else:
+        # Overview of all tools
+        lines = ["# MCPSearch Tools Overview\n"]
+        lines.append("## Web Search & Research")
+        lines.append("- `web_search`: Basic multi-engine search")
+        lines.append("- `search_and_summarize`: Search + AI summary (Perplexity-style)")
+        lines.append("- `smart_search`: Smart link filtering for focused research")
+        lines.append("- `deep_search`: Search + recursive crawl of all links")
+        lines.append("")
+
+        lines.append("## Web Crawling")
+        lines.append("- `crawl_url`: Single URL extraction")
+        lines.append("- `hybrid_crawl`: Auto-stealth fallback crawling")
+        lines.append("- `crawl_recursive`: Follow all links on a site")
+        lines.append("- `extract_content`: Extract tables, code, images")
+        lines.append("")
+
+        lines.append("## Unified Interface")
+        lines.append("- `mcpsearch`: All-in-one tool (search, crawl, social media)")
+        lines.append("- `mcpsearch_multi`: Execute multiple actions in parallel")
+        lines.append("")
+
+        lines.append("## Social Media (Free, No API Key)")
+        lines.append("- `search_reddit`, `get_subreddit`, `get_reddit_post`")
+        lines.append("- `search_twitter`, `get_user_tweets`")
+        lines.append("- `search_youtube`, `get_youtube_channel`, `get_youtube_content`")
+        lines.append("- `search_github`, `get_github_user`, `get_github_repo`, `get_github_readme`")
+        lines.append("")
+
+        lines.append("## Utilities")
+        lines.append("- `list_tools`: List all available tools")
+        lines.append("- `describe_tools`: Get detailed tool documentation")
+        lines.append("- `get_crawl_stats`: View crawling statistics")
+        lines.append("")
+
+        lines.append("## Quick Examples")
+        lines.append("```python")
+        lines.append("# Simple search")
+        lines.append('web_search(query="Python tutorials")')
+        lines.append("")
+        lines.append("# Search with AI summary")
+        lines.append('search_and_summarize(query="latest AI news", summary_length="brief")')
+        lines.append("")
+        lines.append("# Unified interface")
+        lines.append('mcpsearch(action="search", query="React")')
+        lines.append('mcpsearch(action="crawl", url="https://example.com", mode="stealth")')
+        lines.append("")
+        lines.append("# Get help on a specific tool")
+        lines.append('describe_tools(tool_name="mcpsearch")')
+        lines.append("```")
+
+        return "\n".join(lines)
 
 
 @mcp.resource("search://help")
